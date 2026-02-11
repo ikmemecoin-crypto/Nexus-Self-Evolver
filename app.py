@@ -1,102 +1,83 @@
 import streamlit as st
-import json
-import os
+from google import genai
+from tavily import TavilyClient
 import requests
 import base64
+import json
+from github import Github
 
-# Configuration (Ensure these are set in .streamlit/secrets.toml)
-# GITHUB_TOKEN = "your_github_personal_access_token"
-# GITHUB_REPO = "username/repository_name"
-GITHUB_TOKEN = st.secrets.get("GITHUB_TOKEN")
-GITHUB_REPO = st.secrets.get("GITHUB_REPO")
-FILE_PATH = "memory.json"
+# --- 1. CONFIG & SECRETS ---
+st.set_page_config(page_title="NEXUS - God Tier", layout="wide")
 
-def save_to_github(data):
-    """Saves dictionary to memory.json on GitHub using the REST API."""
-    url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{FILE_PATH}"
-    headers = {
-        "Authorization": f"token {GITHUB_TOKEN}",
-        "Accept": "application/vnd.github.v3+json"
-    }
+try:
+    GEMINI_KEY = st.secrets["GEMINI_API_KEY"]
+    TAVILY_KEY = st.secrets["TAVILY_API_KEY"]
+    GH_TOKEN = st.secrets["GITHUB_TOKEN"]
+    GH_REPO = st.secrets["GITHUB_REPO"]
+except:
+    st.error("Secrets missing! Check Streamlit Settings.")
+    st.stop()
 
-    # 1. Get the current file SHA to perform an update
-    res = requests.get(url, headers=headers)
-    sha = None
-    if res.status_code == 200:
-        sha = res.json().get("sha")
+# Initialize
+client = genai.Client(api_key=GEMINI_KEY)
+tavily = TavilyClient(api_key=TAVILY_KEY)
+g = Github(GH_TOKEN)
 
-    # 2. Encode content to Base64
-    content_str = json.dumps(data, indent=4)
-    encoded_content = base64.b64encode(content_str.encode("utf-8")).decode("utf-8")
+# --- 2. MEMORY LOGIC ---
+def get_memory():
+    try:
+        repo = g.get_repo(GH_REPO)
+        file = repo.get_contents("memory.json")
+        return json.loads(file.decoded_content.decode())
+    except:
+        return {"user_name": "Explorer"}
 
-    # 3. Prepare the PUT request
-    payload = {
-        "message": "Update identity from Streamlit UI",
-        "content": encoded_content
-    }
-    if sha:
-        payload["sha"] = sha
+def update_github_file(file_path, content, message):
+    repo = g.get_repo(GH_REPO)
+    try:
+        contents = repo.get_contents(file_path)
+        repo.update_file(contents.path, message, content, contents.sha)
+    except:
+        repo.create_file(file_path, message, content)
 
-    # 4. Push to GitHub
-    put_res = requests.put(url, headers=headers, json=payload)
-    return put_res.status_code in [200, 201]
+# --- 3. SIDEBAR (Identity) ---
+mem = get_memory()
+with st.sidebar:
+    st.title("🧬 NEXUS CORE")
+    st.write(f"Logged in as: **{mem.get('user_name')}**")
+    new_name = st.text_input("Change Name:", value=mem.get('user_name'))
+    if st.button("💾 Sync Identity"):
+        update_github_file("memory.json", json.dumps({"user_name": new_name}), "Update Identity")
+        st.success("Identity Updated! Refreshing...")
+        st.rerun()
 
-def load_local_memory():
-    """Loads memory from local file if it exists."""
-    if os.path.exists(FILE_PATH):
-        try:
-            with open(FILE_PATH, "r") as f:
-                return json.load(f)
-        except:
-            return {}
-    return {}
+# --- 4. MAIN PAGE (The Command Center) ---
+st.title(f"Welcome back, {mem.get('user_name')}!")
+st.write("The Evolution Engine is online. Give your next command below.")
 
-# --- App Logic ---
+# THIS IS THE BOX THAT WAS MISSING
+task = st.text_area("🚀 What should Nexus build or become next?", 
+                    placeholder="e.g., Add a live crypto price tracker to the sidebar.")
 
-st.set_page_config(page_title="Identity Sync Manager", layout="wide")
-
-# Sidebar UI
-st.sidebar.title("Settings")
-current_memory = load_local_memory()
-default_name = current_memory.get("name", "")
-
-user_name_input = st.sidebar.text_input("My Name", value=default_name)
-
-if st.sidebar.button("💾 Sync Identity"):
-    if not GITHUB_TOKEN or not GITHUB_REPO:
-        st.sidebar.error("Error: GitHub credentials not found in secrets.")
-    elif user_name_input:
-        new_data = {"name": user_name_input}
+if st.button("Initiate Evolution"):
+    with st.status("NEXUS is researching and rewriting its DNA...", expanded=True):
+        # Research
+        search = tavily.search(query=f"Streamlit python code for {task}", search_depth="advanced")
         
-        with st.sidebar.status("Syncing to GitHub...") as status:
-            success = save_to_github(new_data)
-            if success:
-                # Update local file as well for immediate persistence
-                with open(FILE_PATH, "w") as f:
-                    json.dump(new_data, f)
-                status.update(label="Sync Complete!", state="complete")
-                st.sidebar.success(f"Identity saved: {user_name_input}")
-                st.rerun()
-            else:
-                status.update(label="Sync Failed", state="error")
-                st.sidebar.error("Could not sync to GitHub. Check your token/repo settings.")
-    else:
-        st.sidebar.warning("Please enter a name.")
+        # Rewrite Code
+        prompt = f"""
+        You are NEXUS AI. Rewrite the ENTIRE 'app.py' to include the existing GitHub update logic, 
+        the memory.json logic, and add this new feature: {task}. 
+        Research: {search}. 
+        Return ONLY the raw Python code.
+        """
+        response = client.models.generate_content(model="gemini-2.0-flash", contents=prompt)
+        st.session_state.draft = response.text
 
-# Main Page Display
-st.title("Streamlit Workspace")
-
-if current_memory.get("name"):
-    st.header(f"Hello, {current_memory['name']}!")
-    st.info("Your identity is synced across the repository via memory.json.")
-else:
-    st.header("Welcome!")
-    st.write("Please set your name in the sidebar to sync your identity.")
-
-# Example of existing logic/content
-st.divider()
-st.subheader("Current Session Data")
-st.json(current_memory)
-
-# Additional app features can go here
-st.write("App is ready for further logic...")
+if "draft" in st.session_state:
+    st.subheader("🧬 New DNA Drafted")
+    st.code(st.session_state.draft, language="python")
+    if st.button("✅ PERMIT EVOLUTION"):
+        update_github_file("app.py", st.session_state.draft, "🧬 NEXUS SELF-EVOLUTION")
+        st.balloons()
+        st.success("System updated. Please wait 60s for reboot.")
