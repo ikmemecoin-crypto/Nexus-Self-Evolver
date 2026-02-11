@@ -7,25 +7,38 @@ from PIL import Image
 from contextlib import redirect_stdout
 import io
 
-# --- 1. CLEAN UI & GLITCH FIX ---
+# --- 1. THE ULTIMATE UI & GLITCH KILLER ---
 st.set_page_config(page_title="Nexus Omni", layout="wide")
 
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&display=swap');
     
-    /* Global Styles */
+    /* Global Reset */
     html, body, [class*="st-"] { 
         font-family: 'Outfit', sans-serif; 
         background-color: #1e1f20; 
         color: #e3e3e3; 
     }
     
-    /* 🚀 THE PERMANENT FIX: Hides the "keyboard_double" glitch and sidebar button */
-    [data-testid="collapsedControl"], button[kind="header"] {
+    /* 🚀 THE PERMANENT SIDEBAR FIX: Kills "keyboard_double" and hover glitches */
+    [data-testid="collapsedControl"], 
+    button[kind="header"], 
+    .st-emotion-cache-6qob1r, 
+    .st-emotion-cache-10oztos,
+    .st-emotion-cache-hp8866 {
         display: none !important;
+        visibility: hidden !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
     }
-    
+
+    /* Target the sidebar container to ensure it doesn't try to animate/collapse */
+    section[data-testid="stSidebar"] {
+        min-width: 300px !important;
+        max-width: 300px !important;
+    }
+
     .main { background-color: #1e1f20; }
     
     .nexus-header {
@@ -58,7 +71,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. AUTH & REPO ---
+# --- 2. CORE AUTH ---
 try:
     client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
     g = Github(st.secrets["GH_TOKEN"])
@@ -67,11 +80,11 @@ except Exception as e:
     st.error(f"📡 Neural Core Offline: {e}")
     st.stop()
 
-# --- 3. SIDEBAR CONTROLS ---
+# --- 3. SIDEBAR NAVIGATION ---
 with st.sidebar:
     st.markdown("<h2 style='color:#e3e3e3; margin-top:-30px;'>NEXUS OMNI</h2>", unsafe_allow_html=True)
     
-    # Cooldown Logic
+    # Live Cooldown Monitor
     if 'cooldown_end' in st.session_state and time.time() < st.session_state.cooldown_end:
         remaining = int(st.session_state.cooldown_end - time.time())
         st.warning(f"⏳ Cooldown: {remaining}s")
@@ -80,81 +93,4 @@ with st.sidebar:
 
     usage_mode = st.radio("Operation Mode", ["Standard Chat", "Live Web Search", "Python Lab"])
     
-    st.markdown("---")
-    project_folder = st.selectbox("Select Project", ["General", "Coding", "Personal", "Research"])
-    memory_filename = f"memory_{project_folder.lower()}.json"
-
-    # Memory DNA
-    if 'memory_data' not in st.session_state or st.session_state.get('last_folder') != project_folder:
-        try:
-            mem_file = repo.get_contents(memory_filename)
-            st.session_state.memory_data = json.loads(mem_file.decoded_content.decode())
-        except:
-            st.session_state.memory_data = {"user_name": "Adil", "chat_summary": ""}
-        st.session_state.last_folder = project_folder
-
-    model_choice = st.selectbox("Neural Engine", ["gemini-2.0-flash", "gemini-1.5-pro"])
-    uploaded_img = st.file_uploader("📷 Vision Link", type=["jpg", "png", "jpeg"])
-    audio_file = st.audio_input("🎙️ Voice Link")
-
-# --- 4. MAIN INTERFACE ---
-st.markdown(f'<h1 class="nexus-header">Greetings, Adil</h1>', unsafe_allow_html=True)
-
-# Feature: Python Lab
-if usage_mode == "Python Lab":
-    st.info("🧪 **Python Lab**: Local execution mode.")
-    with st.form("lab_form"):
-        code_input = st.text_area("Code Editor", value='print("Nexus is ready")', height=200)
-        run_submitted = st.form_submit_button("▶️ Run Script")
-
-    if run_submitted:
-        st.markdown("### 🖥️ Console Output")
-        output_buffer = io.StringIO()
-        try:
-            with redirect_stdout(output_buffer):
-                exec(code_input)
-            st.code(output_buffer.getvalue() or "Success: Process completed.")
-        except Exception as e:
-            st.error(f"Error: {e}")
-    st.stop()
-
-# --- 5. CHAT ENGINE ---
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-
-for message in st.session_state.messages:
-    with st.chat_message(message["role"], avatar="✨" if message["role"] == "assistant" else None):
-        st.markdown(message["content"])
-
-prompt = st.chat_input("Command Nexus...")
-
-if audio_file or uploaded_img or prompt:
-    display_text = prompt if prompt else "🧬 [Input Received]"
-    st.session_state.messages.append({"role": "user", "content": display_text})
-    with st.chat_message("user"):
-        st.markdown(display_text)
-
-    with st.chat_message("assistant", avatar="✨"):
-        try:
-            # Build Multimodal Payload
-            contents = [f"User: Adil. Project: {project_folder}. Context: {st.session_state.memory_data.get('chat_summary','')}"]
-            if uploaded_img: contents.append(Image.open(uploaded_img))
-            if audio_file: contents.append({"inline_data": {"data": audio_file.read(), "mime_type": "audio/wav"}})
-            if prompt: contents.append(prompt)
-
-            # Define Tools
-            tools = [{"google_search": {}}] if usage_mode == "Live Web Search" else None
-            
-            def stream_nexus():
-                # Streaming Logic
-                for chunk in client.models.generate_content_stream(model=model_choice, contents=contents, config={'tools': tools}):
-                    yield chunk.text
-
-            full_res = st.write_stream(stream_nexus())
-            st.session_state.messages.append({"role": "assistant", "content": full_res})
-        except Exception as e:
-            if "429" in str(e):
-                st.session_state.cooldown_end = time.time() + 30
-                st.warning("⚡ API limit reached. Cooldown started.")
-            else:
-                st.error(f"Neural Error: {e}")
+    st.markdown("---
