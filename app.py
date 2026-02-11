@@ -12,18 +12,18 @@ try:
     g = Github(st.secrets["GH_TOKEN"])
     repo = g.get_repo(st.secrets["GH_REPO"])
 except Exception as e:
-    st.error(f"📡 Connection Error: {e}")
+    st.error(f"📡 Auth Error: {e}")
     st.stop()
 
 # --- 3. IDENTITY & MEMORY PERSISTENCE ---
-# Initialize session state BEFORE trying to use it
 if 'memory_data' not in st.session_state:
     try:
+        # Pull from GitHub
         mem_file = repo.get_contents("memory.json")
         st.session_state.memory_data = json.loads(mem_file.decoded_content.decode())
     except:
-        # Fallback if file doesn't exist yet
-        st.session_state.memory_data = {"user_name": "Adil", "chat_summary": "System Initialized."}
+        # Default if GitHub is empty
+        st.session_state.memory_data = {"user_name": "Adil", "chat_summary": "Initial sync."}
     
     st.session_state.user_name = st.session_state.memory_data.get("user_name", "Adil")
 
@@ -33,12 +33,16 @@ with st.sidebar:
     st.write(f"Commander: **{st.session_state.user_name}**")
     
     if st.button("💾 Archive Neural Logs"):
-        with st.spinner("Writing to GitHub DNA..."):
-            history = str(st.session_state.get('messages', []))
-            # Only save the last 1000 characters to prevent 413 Payload Too Large errors
-            st.session_state.memory_data['chat_summary'] = history[-1000:] 
+        with st.spinner("Archiving..."):
+            # Cleanly format the history for the save file
+            history_text = ""
+            if "messages" in st.session_state:
+                for m in st.session_state.messages:
+                    history_text += f"{m['role']}: {m['content']}\n"
             
+            st.session_state.memory_data['chat_summary'] = history_text[-1000:]
             content = json.dumps(st.session_state.memory_data)
+            
             try:
                 f = repo.get_contents("memory.json")
                 repo.update_file(f.path, "Archive Chat Memory", content, f.sha)
@@ -58,22 +62,22 @@ for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-# Chat Input with fixed Error Handling
+# Chat Input
 if prompt := st.chat_input("Ask the Council anything..."):
+    # Add user message to UI immediately
     st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.markdown(prompt)
+    st.rerun() # Refresh to show user bubble before AI thinks
 
+# AI Response Generation (triggered after rerun)
+if len(st.session_state.messages) > 0 and st.session_state.messages[-1]["role"] == "user":
     with st.chat_message("assistant"):
         try:
-            # Clean context for the model
-            clean_context = st.session_state.memory_data.get('chat_summary', 'No previous history.')
-            
+            context = st.session_state.memory_data.get('chat_summary', 'No history.')
             response = client.models.generate_content(
                 model="gemini-2.0-flash",
-                contents=f"User: {st.session_state.user_name}. Past Info: {clean_context}. Current Request: {prompt}"
+                contents=f"User: {st.session_state.user_name}. Summary: {context}. Question: {st.session_state.messages[-1]['content']}"
             )
             st.markdown(response.text)
             st.session_state.messages.append({"role": "assistant", "content": response.text})
         except Exception as e:
-            st.error(f"Neural Glitch: {e}")
+            st.error(f"Brain Glitch: {e}")
