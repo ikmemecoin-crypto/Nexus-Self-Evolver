@@ -4,7 +4,7 @@ import json
 import time
 from github import Github
 
-# --- 1. PREMIUM GREY UI ENGINE ---
+# --- 1. PREMIUM GREY UI ---
 st.set_page_config(page_title="Nexus OS", layout="wide")
 
 st.markdown("""
@@ -28,7 +28,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. AUTH & REPO ---
+# --- 2. AUTH ---
 try:
     client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
     g = Github(st.secrets["GH_TOKEN"])
@@ -37,7 +37,7 @@ except:
     st.error("📡 Nexus Core Offline.")
     st.stop()
 
-# --- 3. MEMORY SETUP ---
+# --- 3. MEMORY ---
 if 'memory_data' not in st.session_state:
     try:
         mem_file = repo.get_contents("memory.json")
@@ -46,10 +46,10 @@ if 'memory_data' not in st.session_state:
         st.session_state.memory_data = {"user_name": "Adil", "chat_summary": ""}
     st.session_state.user_name = st.session_state.memory_data.get("user_name", "Adil")
 
-# --- 4. SIDEBAR (MODEL & VOICE) ---
+# --- 4. SIDEBAR ---
 with st.sidebar:
     st.markdown("<h2 style='color:#e3e3e3; font-weight:400;'>NEXUS OS</h2>", unsafe_allow_html=True)
-    model_choice = st.selectbox("Intelligence Level", ["gemini-2.0-flash", "gemini-1.5-pro"])
+    model_choice = st.selectbox("Neural Engine", ["gemini-2.0-flash", "gemini-1.5-pro"])
     
     if st.button("+ Reset Session", use_container_width=True):
         st.session_state.messages = []
@@ -57,7 +57,8 @@ with st.sidebar:
     
     st.markdown("---")
     st.write("🎙️ **Voice Neural Link**")
-    audio_file = st.audio_input("Speak to Nexus")
+    # Using a clearer prompt for the audio input
+    audio_value = st.audio_input("Speak to the Council")
     
     if st.button("💾 Archive DNA", use_container_width=True):
         history = "\n".join([f"{m['role']}: {m['content']}" for m in st.session_state.get('messages', [])])
@@ -67,7 +68,7 @@ with st.sidebar:
         repo.update_file(f.path, "Neural Sync", content, f.sha)
         st.toast("Memory Synced")
 
-# --- 5. MAIN CHAT & STREAMING ---
+# --- 5. MAIN INTERFACE ---
 st.markdown(f'<h1 class="nexus-header">Greetings, {st.session_state.user_name}</h1>', unsafe_allow_html=True)
 
 if "messages" not in st.session_state:
@@ -77,34 +78,36 @@ for message in st.session_state.messages:
     with st.chat_message(message["role"], avatar="✨" if message["role"] == "assistant" else None):
         st.markdown(message["content"])
 
-# --- 6. MULTIMODAL HANDLER ---
+# --- 6. VOICE & TEXT PROCESSING ---
 prompt = st.chat_input("Ask Nexus anything...")
 
-if audio_file or prompt:
-    input_data = []
-    display_text = prompt if prompt else "🎤 [Audio Command Sent]"
-    
-    # Add User Message to History
-    st.session_state.messages.append({"role": "user", "content": display_text})
-    with st.chat_message("user"):
-        st.markdown(display_text)
+# Logic to prioritize Voice if recorded
+if audio_value:
+    prompt = "🎤 [Voice Message Received]"
+    audio_bytes = audio_value.read()
 
-    # Process AI Response
+if prompt:
+    # Add User Message to History
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    with st.chat_message("user"):
+        st.markdown(prompt)
+
+    # Process AI Response with Streaming
     with st.chat_message("assistant", avatar="✨"):
         try:
             # Prepare Multi-modal Payload
-            contents = [f"User: {st.session_state.user_name}. Context: {st.session_state.memory_data['chat_summary']}"]
+            context_prompt = f"User: {st.session_state.user_name}. Summary: {st.session_state.memory_data['chat_summary']}"
             
-            if audio_file:
-                audio_bytes = audio_file.read()
+            contents = [context_prompt]
+            if audio_value:
                 contents.append({"inline_data": {"data": audio_bytes, "mime_type": "audio/wav"}})
-                contents.append("Please transcribe and address this audio.")
-            
-            if prompt:
-                contents.append(prompt)
+                contents.append("Transcribe this audio and reply to the user.")
+            else:
+                contents.append(st.session_state.messages[-1]["content"])
 
             # STREAMING ENGINE
             def stream_nexus():
+                # Correcting the streaming call for the Client SDK
                 for chunk in client.models.generate_content_stream(model=model_choice, contents=contents):
                     yield chunk.text
 
@@ -113,7 +116,6 @@ if audio_file or prompt:
             
         except Exception as e:
             if "429" in str(e):
-                st.warning("⚡ Neural Overload. Cooling down for 30s...")
-                time.sleep(5) # Minor pause before allowing retry
+                st.warning("⚡ API Cooling Down. Wait 30 seconds.")
             else:
-                st.error(f"Error: {e}")
+                st.error(f"Neural Glitch: {e}")
