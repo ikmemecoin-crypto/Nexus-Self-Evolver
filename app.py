@@ -35,6 +35,13 @@ if 'user_name' not in st.session_state:
 
 with st.sidebar:
     st.title("🧬 NEXUS CORE")
+# New Status Light Feature
+    st.markdown("""
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px;">
+            <div style="width: 12px; height: 12px; background-color: #00ff00; border-radius: 50%; box-shadow: 0 0 10px #00ff00;"></div>
+            <span style="color: #00ff00; font-weight: bold; font-family: monospace;">Neural Link: Active</span>
+        </div>
+    """, unsafe_allow_html=True)
     st.write(f"USER: **{st.session_state.user_name}**")
     new_name = st.text_input("Edit Name", value=st.session_state.user_name)
     if st.button("SYNC"):
