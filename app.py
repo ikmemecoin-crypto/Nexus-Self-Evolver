@@ -7,23 +7,26 @@ from PIL import Image
 from contextlib import redirect_stdout
 import io
 
-# --- 1. GOOGLE MATERIAL DESIGN UI ---
+# --- 1. GOOGLE LIGHT MODE UI ---
 st.set_page_config(page_title="Nexus Omni", layout="wide")
 
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500&family=Roboto:wght@300;400;500&display=swap');
     
-    /* Google Global Styles */
+    /* Light Mode Global Styles */
     html, body, [class*="st-"] { 
         font-family: 'Google Sans', 'Roboto', sans-serif; 
-        background-color: #131314; 
-        color: #e3e3e3; 
+        background-color: #FFFFFF; 
+        color: #1f1f1f; 
     }
     
-    .main { background-color: #131314; }
+    /* Main Container Background */
+    .stApp {
+        background-color: #FFFFFF;
+    }
 
-    /* Centered Google-style Header */
+    /* Centered Google Logo Style Header */
     .google-header {
         font-family: 'Google Sans', sans-serif;
         font-size: 3.5rem;
@@ -33,55 +36,68 @@ st.markdown("""
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         margin-top: 5vh;
-        margin-bottom: 1rem;
+        margin-bottom: 0.5rem;
     }
 
     .subtitle {
         text-align: center;
-        color: #8e918f;
+        color: #5f6368;
         font-size: 1.2rem;
         margin-bottom: 3rem;
     }
     
-    /* Material Sidebar */
+    /* Light Material Sidebar */
     [data-testid="stSidebar"] { 
-        background-color: #1e1f20 !important; 
-        border-right: none;
-        padding-top: 2rem;
+        background-color: #f8f9fa !important; 
+        border-right: 1px solid #dadce0;
     }
     
-    /* Chat Bubbles (Gemini Style) */
+    /* Chat Bubbles (Light Style) */
     div[data-testid="stChatMessage"] {
         background-color: transparent !important;
         border: none !important;
         margin-bottom: 24px !important;
+        color: #1f1f1f !important;
     }
 
-    /* User Message Background */
+    /* User Message Bubble (Light Grey) */
     div[data-testid="stChatMessage"]:has(img[alt="user"]) > div {
-        background-color: #2b2d2f !important;
-        border-radius: 28px !important;
+        background-color: #f1f3f4 !important;
+        border-radius: 24px !important;
         padding: 18px 24px !important;
         max-width: 80%;
         margin-left: auto;
+        color: #1f1f1f !important;
     }
     
-    /* Assistant Message Background */
+    /* Assistant Message (Plain Text) */
     div[data-testid="stChatMessage"]:has(span:contains("✨")) > div {
         background-color: transparent !important;
         padding: 0 !important;
+        color: #1f1f1f !important;
     }
 
-    /* Floating Search Bar (Google Style) */
+    /* Light Search Pill */
     .stChatInputContainer { 
-        background-color: #1e1f20 !important;
-        border: 1px solid #3c4043 !important;
+        background-color: #FFFFFF !important;
+        border: 1px solid #dadce0 !important;
         border-radius: 32px !important;
-        padding: 5px 15px !important;
-        margin-bottom: 40px;
+        box-shadow: 0 1px 6px rgba(32,33,36,.28) !important;
+    }
+    
+    /* Input Text Color */
+    .stChatInput textarea {
+        color: #1f1f1f !important;
     }
 
-    /* Hide UI Clutter */
+    /* Form and Button Styling for Light Mode */
+    .stButton>button {
+        border-radius: 20px;
+        background-color: #1a73e8;
+        color: white;
+        border: none;
+    }
+
     #MainMenu, footer, header { visibility: hidden; }
     </style>
     """, unsafe_allow_html=True)
@@ -92,19 +108,19 @@ try:
     g = Github(st.secrets["GH_TOKEN"])
     repo = g.get_repo(st.secrets["GH_REPO"])
 except Exception as e:
-    st.error("📡 Connection Interrupted. Check API Credentials.")
+    st.error("📡 Connection Offline: Check Secrets.")
     st.stop()
 
-# --- 3. GOOGLE SIDEBAR (MATERIAL PILLS) ---
+# --- 3. SIDEBAR (CONTROLS) ---
 with st.sidebar:
-    st.markdown("<h3 style='color:#e3e3e3; padding-left:10px;'>Nexus Omni</h3>", unsafe_allow_html=True)
+    st.markdown("<h3 style='color:#1f1f1f; padding-bottom:20px;'>Nexus Omni</h3>", unsafe_allow_html=True)
     
-    usage_mode = st.radio("Mode", ["Standard Chat", "Live Web Search", "Python Lab"], label_visibility="collapsed")
+    usage_mode = st.radio("Mode", ["Standard Chat", "Live Web Search", "Python Lab"])
     
-    st.markdown("<br><p style='color:#8e918f; font-size:0.8rem; padding-left:10px;'>CONTEXT VAULT</p>", unsafe_allow_html=True)
-    project_folder = st.selectbox("Project", ["General", "Coding", "Personal", "Research"], label_visibility="collapsed")
+    st.markdown("---")
+    project_folder = st.selectbox("Project", ["General", "Coding", "Personal", "Research"])
     
-    # Memory Sync
+    # Persistent Memory
     memory_filename = f"memory_{project_folder.lower()}.json"
     if 'memory_data' not in st.session_state or st.session_state.get('last_folder') != project_folder:
         try:
@@ -114,7 +130,6 @@ with st.sidebar:
             st.session_state.memory_data = {"user_name": "Adil", "chat_summary": ""}
         st.session_state.last_folder = project_folder
 
-    st.markdown("---")
     uploaded_img = st.file_uploader("Upload Image", type=["jpg", "png", "jpeg"])
     audio_file = st.audio_input("Voice Input")
 
@@ -126,14 +141,14 @@ st.markdown('<div class="subtitle">How can I help you today, Adil?</div>', unsaf
 if usage_mode == "Python Lab":
     st.markdown("### 🧪 Python Lab")
     with st.form("lab_form"):
-        code_input = st.text_area("Code Sandbox", value='print("Hello from Nexus")', height=150)
+        code_input = st.text_area("Write Script...", value='print("Hello Adil")', height=150)
         run_submitted = st.form_submit_button("Run Code")
     if run_submitted:
         output_buffer = io.StringIO()
         try:
             with redirect_stdout(output_buffer):
                 exec(code_input)
-            st.code(output_buffer.getvalue() or "Executed successfully.")
+            st.code(output_buffer.getvalue() or "Success.")
         except Exception as e:
             st.error(f"Error: {e}")
     st.stop()
@@ -142,14 +157,15 @@ if usage_mode == "Python Lab":
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Display Messages in centered container
+# Display centered messages
 col1, col2, col3 = st.columns([1, 4, 1])
 with col2:
     for message in st.session_state.messages:
-        with st.chat_message(message["role"], avatar="✨" if message["role"] == "assistant" else None):
+        avatar_icon = "✨" if message["role"] == "assistant" else None
+        with st.chat_message(message["role"], avatar=avatar_icon):
             st.markdown(message["content"])
 
-    prompt = st.chat_input("Ask Nexus anything...")
+    prompt = st.chat_input("Ask Nexus...")
 
     if audio_file or uploaded_img or prompt:
         display_text = prompt if prompt else "🧬 Input Received"
@@ -157,7 +173,7 @@ with col2:
         
         with st.chat_message("assistant", avatar="✨"):
             try:
-                contents = [f"Adil's Context: {st.session_state.memory_data.get('chat_summary','')}"]
+                contents = [f"Context: {st.session_state.memory_data.get('chat_summary','')}"]
                 if uploaded_img: contents.append(Image.open(uploaded_img))
                 if audio_file: contents.append({"inline_data": {"data": audio_file.read(), "mime_type": "audio/wav"}})
                 if prompt: contents.append(prompt)
