@@ -4,122 +4,80 @@ import json
 import time
 from github import Github
 from PIL import Image
-from contextlib import redirect_stdout
-import io
 
-# --- 1. BALANCED UI & GLITCH REMOVAL ---
+# --- 1. NEXUS OMNI UI ENGINE ---
 st.set_page_config(page_title="Nexus Omni", layout="wide")
 
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&display=swap');
-    
-    html, body, [class*="st-"] { 
-        font-family: 'Outfit', sans-serif; 
-        background-color: #1e1f20; 
-        color: #e3e3e3; 
-    }
-    
-    /* 🚀 SURGICAL FIX: Hide ONLY the broken icon text, keep the sidebar */
-    [data-testid="collapsedControl"], button[kind="header"] {
-        display: none !important;
-    }
-    
-    /* This prevents the sidebar from being 'squished' */
-    section[data-testid="stSidebar"] {
-        background-color: #131314 !important; 
-        border-right: 1px solid #333;
-        min-width: 300px !important;
-    }
-
+    html, body, [class*="st-"] { font-family: 'Outfit', sans-serif; background-color: #1e1f20; color: #e3e3e3; }
     .main { background-color: #1e1f20; }
-    
     .nexus-header {
         font-size: 2.8rem; font-weight: 500;
         background: linear-gradient(90deg, #4285f4, #9b72cb, #d96570);
         -webkit-background-clip: text; -webkit-text-fill-color: transparent;
         margin-bottom: 2rem;
     }
-    
     div[data-testid="stChatMessage"] {
-        background-color: #2b2d2f !important; 
-        border-radius: 20px !important;
-        padding: 15px !important; 
-        border: 1px solid rgba(255,255,255,0.05) !important;
+        background-color: #2b2d2f !important; border-radius: 20px !important;
+        padding: 15px !important; border: 1px solid rgba(255,255,255,0.05) !important;
     }
+    .stChatInputContainer { position: fixed; bottom: 35px; border-radius: 32px !important; z-index: 1000; }
+    [data-testid="stSidebar"] { background-color: #131314 !important; border-right: 1px solid #333; }
+    #MainMenu, footer, header {visibility: hidden;}
     
-    .stChatInputContainer { 
-        position: fixed; 
-        bottom: 35px; 
-        border-radius: 32px !important; 
-        z-index: 1000; 
+    /* System Status Bar */
+    .status-bar {
+        padding: 10px; border-radius: 10px; background: #2b2d2f;
+        border: 1px solid #444746; margin-bottom: 20px;
     }
-    
-    #MainMenu, footer, header { visibility: hidden; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. CORE AUTH ---
+# --- 2. AUTH & CORE ---
 try:
     client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
     g = Github(st.secrets["GH_TOKEN"])
     repo = g.get_repo(st.secrets["GH_REPO"])
-except Exception as e:
-    st.error(f"📡 Neural Core Offline: {e}")
+except:
+    st.error("📡 Neural Core Offline.")
     st.stop()
 
-# --- 3. SIDEBAR NAVIGATION ---
-with st.sidebar:
-    st.markdown("<h2 style='color:#e3e3e3; margin-top:-30px;'>NEXUS OMNI</h2>", unsafe_allow_html=True)
-    
-    # Cooldown Logic
-    if 'cooldown_end' in st.session_state and time.time() < st.session_state.cooldown_end:
-        remaining = int(st.session_state.cooldown_end - time.time())
-        st.warning(f"⏳ Cooldown: {remaining}s")
-        time.sleep(1)
-        st.rerun()
+# --- 3. PERSISTENT DNA ---
+if 'memory_data' not in st.session_state:
+    try:
+        mem_file = repo.get_contents("memory.json")
+        st.session_state.memory_data = json.loads(mem_file.decoded_content.decode())
+    except:
+        st.session_state.memory_data = {"user_name": "Adil", "chat_summary": ""}
 
-    usage_mode = st.radio("Operation Mode", ["Standard Chat", "Live Web Search", "Python Lab"])
+# --- 4. SIDEBAR (SYSTEM DASHBOARD & TOOLS) ---
+with st.sidebar:
+    st.markdown("<h2 style='color:#e3e3e3;'>NEXUS OMNI</h2>", unsafe_allow_html=True)
+    
+    # SYSTEM DASHBOARD
+    st.markdown("<div class='status-bar'>🛰️ <b>System Status:</b> Operational</div>", unsafe_allow_html=True)
+    usage_mode = st.radio("Operation Mode", ["Standard Chat", "Live Web Search", "Image Lab"])
     
     st.markdown("---")
-    project_folder = st.selectbox("Select Project", ["General", "Coding", "Personal", "Research"])
+    model_choice = st.selectbox("Intelligence Level", ["gemini-2.0-flash", "gemini-1.5-pro"])
     
-    # Persistent Memory Engine
-    memory_filename = f"memory_{project_folder.lower()}.json"
-    if 'memory_data' not in st.session_state or st.session_state.get('last_folder') != project_folder:
-        try:
-            mem_file = repo.get_contents(memory_filename)
-            st.session_state.memory_data = json.loads(mem_file.decoded_content.decode())
-        except:
-            st.session_state.memory_data = {"user_name": "Adil", "chat_summary": ""}
-        st.session_state.last_folder = project_folder
-
-    model_choice = st.selectbox("Neural Engine", ["gemini-2.0-flash", "gemini-1.5-pro"])
+    # TOOLS
     uploaded_img = st.file_uploader("📷 Vision Link", type=["jpg", "png", "jpeg"])
-    audio_file = st.audio_input("🎙️ Voice Neural Link")
+    audio_file = st.audio_input("🎙️ Voice Link")
+    
+    if st.button("💾 Archive DNA", use_container_width=True):
+        history = "\n".join([f"{m['role']}: {m['content']}" for m in st.session_state.get('messages', [])])
+        st.session_state.memory_data['chat_summary'] = history[-800:]
+        content = json.dumps(st.session_state.memory_data)
+        f = repo.get_contents("memory.json")
+        repo.update_file(f.path, "Neural Sync", content, f.sha)
+        st.toast("Nexus DNA Updated")
 
-# --- 4. MAIN INTERFACE ---
+# --- 5. MAIN INTERFACE ---
 st.markdown(f'<h1 class="nexus-header">Greetings, Adil</h1>', unsafe_allow_html=True)
 
-# PYTHON LAB (Local Sandbox)
-if usage_mode == "Python Lab":
-    st.info("🧪 **Python Lab**: Local code sandbox.")
-    with st.form("lab_form"):
-        code_input = st.text_area("Code Editor", value='print("Nexus is ready")', height=200)
-        run_submitted = st.form_submit_button("▶️ Run Script")
-
-    if run_submitted:
-        st.markdown("### 🖥️ Console Output")
-        output_buffer = io.StringIO()
-        try:
-            with redirect_stdout(output_buffer):
-                exec(code_input)
-            st.code(output_buffer.getvalue() or "Success: No output.")
-        except Exception as e:
-            st.error(f"Error: {e}")
-    st.stop()
-
-# STANDARD CHAT
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
@@ -127,34 +85,47 @@ for message in st.session_state.messages:
     with st.chat_message(message["role"], avatar="✨" if message["role"] == "assistant" else None):
         st.markdown(message["content"])
 
+# --- 6. OMNI-MODAL PROCESSING ---
 prompt = st.chat_input("Command Nexus...")
 
 if audio_file or uploaded_img or prompt:
-    display_text = prompt if prompt else "🧬 [Input Received]"
+    display_text = prompt if prompt else "🧬 [Omni-Modal Command]"
     st.session_state.messages.append({"role": "user", "content": display_text})
     with st.chat_message("user"):
         st.markdown(display_text)
 
     with st.chat_message("assistant", avatar="✨"):
         try:
-            # Context Building
-            contents = [f"User: Adil. Project: {project_folder}. History: {st.session_state.memory_data.get('chat_summary','')}"]
-            if uploaded_img: contents.append(Image.open(uploaded_img))
-            if audio_file: contents.append({"inline_data": {"data": audio_file.read(), "mime_type": "audio/wav"}})
-            if prompt: contents.append(prompt)
-
-            # Tools Configuration
-            tools = [{"google_search": {}}] if usage_mode == "Live Web Search" else None
+            # Build Context
+            contents = [f"User: Adil. Mode: {usage_mode}. Summary: {st.session_state.memory_data.get('chat_summary','')}"]
             
+            # Feature Integration: Live Search & Image Gen Instruction
+            if usage_mode == "Live Web Search":
+                contents.append("Use your integrated search tools to provide the most recent information from 2026.")
+            elif usage_mode == "Image Lab":
+                contents.append("Act as a creative image generation assistant.")
+            
+            if uploaded_img:
+                contents.append(Image.open(uploaded_img))
+            if audio_file:
+                contents.append({"inline_data": {"data": audio_file.read(), "mime_type": "audio/wav"}})
+            if prompt:
+                contents.append(prompt)
+
+            # STREAMING ENGINE
             def stream_nexus():
+                # Checking for Google Search Tool if Flash is used
+                tools = [{"google_search": {}}] if usage_mode == "Live Web Search" else None
+                
                 for chunk in client.models.generate_content_stream(model=model_choice, contents=contents, config={'tools': tools}):
                     yield chunk.text
 
-            full_res = st.write_stream(stream_nexus())
-            st.session_state.messages.append({"role": "assistant", "content": full_res})
+            full_response = st.write_stream(stream_nexus())
+            st.session_state.messages.append({"role": "assistant", "content": full_response})
+            
         except Exception as e:
             if "429" in str(e):
-                st.session_state.cooldown_end = time.time() + 30
-                st.warning("⚡ API Rate Limit Reached. Cooldown initiated.")
+                st.warning("⚡ API Cooldown. Switching to low-power mode...")
+                st.info("System will be ready in 30 seconds.")
             else:
                 st.error(f"Neural Error: {e}")
