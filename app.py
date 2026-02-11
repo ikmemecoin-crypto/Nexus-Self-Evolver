@@ -127,4 +127,48 @@ if usage_mode == "Python Lab":
     st.markdown("### 🧪 Python Lab")
     with st.form("lab_form"):
         code_input = st.text_area("Code Sandbox", value='print("Hello from Nexus")', height=150)
-        run_submitted = st.form_submit_button("Run
+        run_submitted = st.form_submit_button("Run Code")
+    if run_submitted:
+        output_buffer = io.StringIO()
+        try:
+            with redirect_stdout(output_buffer):
+                exec(code_input)
+            st.code(output_buffer.getvalue() or "Executed successfully.")
+        except Exception as e:
+            st.error(f"Error: {e}")
+    st.stop()
+
+# Chat System
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+# Display Messages in centered container
+col1, col2, col3 = st.columns([1, 4, 1])
+with col2:
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"], avatar="✨" if message["role"] == "assistant" else None):
+            st.markdown(message["content"])
+
+    prompt = st.chat_input("Ask Nexus anything...")
+
+    if audio_file or uploaded_img or prompt:
+        display_text = prompt if prompt else "🧬 Input Received"
+        st.session_state.messages.append({"role": "user", "content": display_text})
+        
+        with st.chat_message("assistant", avatar="✨"):
+            try:
+                contents = [f"Adil's Context: {st.session_state.memory_data.get('chat_summary','')}"]
+                if uploaded_img: contents.append(Image.open(uploaded_img))
+                if audio_file: contents.append({"inline_data": {"data": audio_file.read(), "mime_type": "audio/wav"}})
+                if prompt: contents.append(prompt)
+
+                tools = [{"google_search": {}}] if usage_mode == "Live Web Search" else None
+                
+                def stream_nexus():
+                    for chunk in client.models.generate_content_stream(model="gemini-2.0-flash", contents=contents, config={'tools': tools}):
+                        yield chunk.text
+
+                full_res = st.write_stream(stream_nexus())
+                st.session_state.messages.append({"role": "assistant", "content": full_res})
+            except Exception as e:
+                st.error(f"Neural Error: {e}")
