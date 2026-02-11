@@ -1,93 +1,103 @@
 import streamlit as st
+from google import genai
+from tavily import TavilyClient
+import requests
+import base64
 import datetime
 
-# --- SET PAGE CONFIG ---
-st.set_page_config(
-    page_title="NEXUS AI - Evolution Hub",
-    page_icon="🧬",
-    layout="wide"
-)
+# --- CONFIGURATION ---
+st.set_page_config(page_title="NEXUS AI - Evolution Hub", page_icon="🧬", layout="wide")
 
-# --- PREVIOUS LOGIC: SEARCH AND EVOLUTION FUNCTIONS ---
-def search_nexus(query: str):
-    """
-    Simulated search logic for research and discovery.
-    In a live environment, this connects to Tavily/Serper API.
-    """
-    return [
-        {"title": f"Current State of {query}", "content": f"Detailed analysis of {query} in 2026."},
-        {"title": f"Emergent Trends in {query}", "content": f"New breakthroughs observed in the {query} sector."}
-    ]
+# Load Secrets safely
+try:
+    GEMINI_KEY = st.secrets["GEMINI_API_KEY"]
+    TAVILY_KEY = st.secrets["TAVILY_API_KEY"]
+    GH_TOKEN = st.secrets["GITHUB_TOKEN"]
+    GH_REPO = st.secrets["GITHUB_REPO"]
+except Exception as e:
+    st.error("⚠️ Missing Secrets! Please add GEMINI_API_KEY, TAVILY_API_KEY, GITHUB_TOKEN, and GITHUB_REPO to Streamlit Secrets.")
+    st.stop()
 
-def evolve_nexus(context: list):
-    """
-    Simulated evolution logic to synthesize research into next-gen concepts.
-    """
-    synthesis = " | ".join([item['title'] for item in context])
-    return f"EVOLVED INSIGHT: Based on [{synthesis}], the next logical step is Autonomous Integration."
+# Initialize Clients
+client = genai.Client(api_key=GEMINI_KEY)
+tavily = TavilyClient(api_key=TAVILY_KEY)
 
-# --- NEWS FETCHING LOGIC ---
+# --- THE "HANDS" (GitHub API) ---
+def update_nexus_code(new_code_content):
+    url = f"https://api.github.com/repos/{GH_REPO}/contents/app.py"
+    headers = {"Authorization": f"token {GH_TOKEN}", "Accept": "application/vnd.github.v3+json"}
+    
+    # Get current file SHA for the update
+    res = requests.get(url, headers=headers).json()
+    sha = res.get('sha')
+    
+    encoded_content = base64.b64encode(new_code_content.encode('utf-8')).decode('utf-8')
+    data = {"message": "🧬 NEXUS SELF-EVOLUTION: System Upgrade", "content": encoded_content, "sha": sha}
+    
+    update_res = requests.put(url, headers=headers, json=data)
+    if update_res.status_code == 200:
+        st.success("✅ EVOLUTION SUCCESSFUL. The Nexus is rebooting with new skills...")
+        st.balloons()
+    else:
+        st.error(f"Evolution Failed: {update_res.text}")
+
+# --- AI NEWS FEED LOGIC ---
 def get_top_ai_news():
-    """
-    Simulates fetching the top 5 AI news stories.
-    Based on 2026 Best Practices from NewsData/RSS integration.
-    """
-    today = datetime.date.today().strftime("%B %d, %Y")
-    # Mock data representing real-time fetch results for the purpose of the UI
-    return [
-        {"title": "OpenAI Unveils GPT-6 Multi-Modal Architecture", "url": "https://openai.com", "source": "TechCrunch"},
-        {"title": "Neuralink Achieves High-Fidelity Bidirectional Data Stream", "url": "https://neuralink.com", "source": "Wired"},
-        {"title": "Global AI Treaty Signed by 150+ Nations", "url": "https://un.org", "source": "Reuters"},
-        {"title": "NVIDIA RTX 6090 Ti: The Dawn of Local LLM Supremacy", "url": "https://nvidia.com", "source": "The Verge"},
-        {"title": "DeepMind's AlphaFold 4 Predicts Protein-Drug Interactions", "url": "https://deepmind.google", "source": "Nature"},
-    ]
+    # Use Tavily to fetch real news instead of mock data
+    search = tavily.search(query="Top AI news today February 2026", search_depth="basic", max_results=5)
+    return search.get('results', [])
 
-# --- SIDEBAR IMPLEMENTATION ---
+# --- SIDEBAR ---
 with st.sidebar:
-    st.title("🧬 NEXUS AI Feed")
-    st.subheader("Top AI News - Today")
-    st.caption(f"Updated: {datetime.date.today().strftime('%Y-%m-%d')}")
+    st.title("🧬 NEXUS AI Status")
+    st.success("Brain: Connected")
+    st.success("Hands: Master Key Active")
     st.divider()
+    st.subheader("Real-Time AI Feed")
     
-    news_stories = get_top_ai_news()
-    for story in news_stories:
-        st.markdown(f"**[{story['title']}]({story['url']})**")
-        st.caption(f"Source: {story['source']}")
-        st.write("---")
+    if st.button("Refresh News"):
+        st.session_state.news = get_top_ai_news()
     
-    st.info("NEXUS Sidebar auto-refreshes daily.")
+    news = st.session_state.get('news', get_top_ai_news())
+    for item in news:
+        st.markdown(f"**[{item['title']}]({item['url']})**")
+        st.caption(f"Relevance: {item.get('score', 'High')}")
+        st.divider()
 
 # --- MAIN UI ---
-st.title("NEXUS AI Evolution Engine")
+st.title("🌐 NEXUS AI Evolution Engine")
 st.write("Synthesizing real-time research into evolutionary breakthroughs.")
 
-query = st.text_input("Enter research focus (e.g., 'Quantum Neural Nets'):", placeholder="Quantum Neural Nets")
+# Evolution Input
+task = st.text_area("What new skill or power should Nexus acquire?", 
+                    placeholder="e.g., Add a data visualization dashboard for crypto prices.")
 
-if query:
+# THE BUTTON (Fixed placement)
+if st.button("🚀 Initiate Research & Evolution"):
     with st.status("Analyzing and Evolving...", expanded=True) as status:
-        st.write("Searching NEXUS Database...")
-        research_results = search_nexus(query)
+        st.write("Searching Global 2026 Databases...")
+        search_results = tavily.search(query=f"Python Streamlit code for {task} 2026", search_depth="advanced")
         
-        st.write("Evolving research context...")
-        evolution_result = evolve_nexus(research_results)
-        
-        status.update(label="Evolution Complete!", state="complete", expanded=False)
+        st.write("Synthesizing New DNA (Code)...")
+        evolution_prompt = f"""
+        You are the NEXUS AI Core. Task: {task}. 
+        Research: {search_results}.
+        Write a COMPLETE new app.py file. 
+        Ensure you keep the GitHub update function and the News Sidebar.
+        Return ONLY the raw Python code.
+        """
+        response = client.models.generate_content(model="gemini-3-flash-preview", contents=evolution_prompt)
+        st.session_state.draft_code = response.text
+        status.update(label="DNA Drafted!", state="complete", expanded=False)
 
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.header("Research Fragments")
-        for res in research_results:
-            with st.expander(res['title']):
-                st.write(res['content'])
-                
-    with col2:
-        st.header("Evolutionary Output")
-        st.success(evolution_result)
-        st.button("Deploy to Production")
-else:
-    st.info("Awaiting input to begin evolution sequence.")
+# Deployment Trigger
+if "draft_code" in st.session_state:
+    st.subheader("Proposed System Upgrade")
+    st.code(st.session_state.draft_code, language="python")
+    st.warning("⚠️ Permitting evolution will overwrite the current system.")
+    if st.button("✅ PERMIT EVOLUTION"):
+        update_nexus_code(st.session_state.draft_code)
 
 # --- FOOTER ---
 st.divider()
-st.caption("NEXUS AI Core v4.0.26 | Powered by Streamlit 2026 Framework")
+st.caption(f"NEXUS AI Core v4.0.26 | Last Sync: {datetime.datetime.now().strftime('%H:%M:%S')}")
