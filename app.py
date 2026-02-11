@@ -68,7 +68,7 @@ if st.button("🚀 INITIATE EVOLUTION"):
             res = tavily.search(query=f"Streamlit code for {task}", search_depth="basic")
             prompt = f"Rewrite app.py. Keep all existing GitHub/Memory logic. Add {task}. Use {res}. RAW CODE ONLY."
             # We use gemini-1.5-flash here for maximum stability during tests
-            response = client.models.generate_content(model="gemini-1.5-flash", contents=prompt)
+            response = client.models.generate_content(model="gemini-2.0-flash", contents=prompt)
             st.session_state.draft = response.text
             st.rerun()
     except Exception as e:
