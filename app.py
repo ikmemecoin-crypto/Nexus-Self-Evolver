@@ -1,81 +1,69 @@
 import streamlit as st
 from google import genai
-from tavily import TavilyClient
 import json
 from github import Github
 
-st.set_page_config(page_title="NEXUS COMMAND", layout="wide")
+# --- 1. CORE CONFIG ---
+st.set_page_config(page_title="NEXUS | COUNCIL", layout="wide")
 
-# Corrected Styling
+# Unique Cyber Styling
 st.markdown("""
     <style>
-    .main { background: #0f0c29; color: white; }
-    .stButton>button { background: #3a7bd5; color: white; border-radius: 8px; }
+    .main { background: #0b0e14; color: #00d2ff; }
+    .stChatInput { bottom: 20px; }
+    .stChatMessage { background: rgba(0, 210, 255, 0.05); border-radius: 10px; border-left: 3px solid #00d2ff; }
     </style>
     """, unsafe_allow_html=True)
 
-# Auth
-try:
-    client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
-    tavily = TavilyClient(api_key=st.secrets["TAVILY_API_KEY"])
-    g = Github(st.secrets["GH_TOKEN"])
-    repo_name = st.secrets["GH_REPO"]
-except:
-    st.error("📡 AUTH ERROR: Check Secrets names (GH_TOKEN, GH_REPO, etc.)")
-    st.stop()
+# --- 2. AUTH ---
+client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
+g = Github(st.secrets["GH_TOKEN"])
+repo = g.get_repo(st.secrets["GH_REPO"])
 
-# Memory Sync
+# --- 3. IDENTITY ---
 if 'user_name' not in st.session_state:
     try:
-        repo = g.get_repo(repo_name)
         mem = json.loads(repo.get_contents("memory.json").decoded_content.decode())
-        st.session_state.user_name = mem.get("user_name", "Commander")
+        st.session_state.user_name = mem.get("user_name", "Adil")
     except:
         st.session_state.user_name = "Adil"
 
+# --- 4. SIDEBAR ---
 with st.sidebar:
     st.title("🧬 NEXUS CORE")
-# New Status Light Feature
-    st.markdown("""
-        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px;">
-            <div style="width: 12px; height: 12px; background-color: #00ff00; border-radius: 50%; box-shadow: 0 0 10px #00ff00;"></div>
-            <span style="color: #00ff00; font-weight: bold; font-family: monospace;">Neural Link: Active</span>
+    st.markdown(f"""
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <div style="width: 12px; height: 12px; background: #00ff00; border-radius: 50%; box-shadow: 0 0 10px #00ff00;"></div>
+            <span style="color: #00ff00; font-weight: bold;">Link: Active</span>
         </div>
     """, unsafe_allow_html=True)
-    st.write(f"USER: **{st.session_state.user_name}**")
-    new_name = st.text_input("Edit Name", value=st.session_state.user_name)
-    if st.button("SYNC"):
-        repo = g.get_repo(repo_name)
-        content = json.dumps({"user_name": new_name})
-        try:
-            f = repo.get_contents("memory.json")
-            repo.update_file(f.path, "Update Identity", content, f.sha)
-        except:
-            repo.create_file("memory.json", "Create Identity", content)
-        st.session_state.user_name = new_name
+    st.write(f"Commander: **{st.session_state.user_name}**")
+    
+    if st.button("🚀 Switch to Evolution Mode"):
+        st.session_state.mode = "evolve"
         st.rerun()
 
-st.title(f"Greetings, {st.session_state.user_name}")
-task = st.text_area("Evolution Command:", placeholder="e.g. Add a system status light...")
+# --- 5. CHAT INTERFACE (The New Agent) ---
+st.title(f"Neural Chat: Hello, {st.session_state.user_name}")
 
-if st.button("🚀 INITIATE"):
-    try:
-        with st.status("🧬 Thinking...", expanded=True):
-            search = tavily.search(query=f"Streamlit code {task}", search_depth="basic")
-            # FIXED MODEL STRING BELOW
-            response = client.models.generate_content(
-                model="gemini-2.0-flash", 
-                contents=f"Rewrite app.py to add {task} using {search}. Keep GitHub/Memory logic. RAW CODE ONLY."
-            )
-            st.session_state.draft = response.text
-            st.rerun()
-    except Exception as e:
-        st.error(f"Brain Glitch: {e}")
+if "messages" not in st.session_state:
+    st.session_state.messages = []
 
-if "draft" in st.session_state:
-    st.code(st.session_state.draft, language="python")
-    if st.button("✅ PERMIT"):
-        repo = g.get_repo(repo_name)
-        f = repo.get_contents("app.py")
-        repo.update_file(f.path, "🧬 EVOLUTION", st.session_state.draft, f.sha)
-        st.success("DNA Updated. Rebooting...")
+# Display chat history
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
+
+# Chat Input
+if prompt := st.chat_input("Speak to the Nexus Council..."):
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    with st.chat_message("user"):
+        st.markdown(prompt)
+
+    with st.chat_message("assistant"):
+        response = client.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=f"You are the Nexus AI Council. Address the user as {st.session_state.user_name}. Answer: {prompt}"
+        )
+        st.markdown(response.text)
+        st.session_state.messages.append({"role": "assistant", "content": response.text})
