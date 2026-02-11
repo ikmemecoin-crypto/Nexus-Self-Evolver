@@ -7,25 +7,40 @@ from PIL import Image
 from contextlib import redirect_stdout
 import io
 
-# --- 1. GOOGLE MATERIAL DESIGN UI ---
-st.set_page_config(page_title="Nexus Omni", layout="wide")
+# --- 1. GOOGLE MATERIAL DESIGN (RIGHT-SIDE & BIG FONT) ---
+st.set_page_config(page_title="Nexus Omni", layout="wide", initial_sidebar_state="expanded")
 
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500&family=Roboto:wght@300;400;500&display=swap');
     
+    /* Global Background & A++ Font Scaling */
     html, body, [class*="st-"] { 
         font-family: 'Google Sans', 'Roboto', sans-serif; 
         background-color: #131314; 
         color: #e3e3e3; 
+        font-size: 1.5rem !important; /* Huge Base Font */
     }
     
     .main { background-color: #131314; }
 
-    /* Centered Google Logo Style Header */
+    /* 🚀 THE RIGHT-SIDE SIDEBAR HACK */
+    [data-testid="stAppViewContainer"] {
+        flex-direction: row-reverse !important;
+    }
+    [data-testid="stSidebar"] {
+        left: auto !important;
+        right: 0 !important;
+        background-color: #1e1f20 !important; 
+        border-left: 1px solid #3c4043 !important;
+        border-right: none !important;
+        width: 450px !important; /* Wider for big text */
+    }
+
+    /* A++ Header Styling */
     .google-header {
         font-family: 'Google Sans', sans-serif;
-        font-size: 3.5rem;
+        font-size: 5rem !important;
         font-weight: 500;
         text-align: center;
         background: linear-gradient(90deg, #4285F4 0%, #34A853 30%, #FBBC05 60%, #EA4335 100%);
@@ -38,29 +53,33 @@ st.markdown("""
     .subtitle {
         text-align: center;
         color: #8e918f;
-        font-size: 1.2rem;
+        font-size: 1.8rem !important;
         margin-bottom: 3rem;
     }
-    
-    /* Material Sidebar */
-    [data-testid="stSidebar"] { 
-        background-color: #1e1f20 !important; 
-        border-right: none;
+
+    /* Big Controls for A++ Visibility */
+    label, .stRadio p, .stSelectbox label {
+        font-size: 1.8rem !important;
+        font-weight: 500 !important;
+        color: #ffffff !important;
     }
     
-    /* Chat Bubbles */
+    /* Big Chat Bubbles */
     div[data-testid="stChatMessage"] {
         background-color: transparent !important;
-        border: none !important;
-        margin-bottom: 24px !important;
+        font-size: 1.5rem !important;
     }
 
-    /* Floating Search Pill (Google Style) */
+    /* Big Search Pill */
     .stChatInputContainer { 
         background-color: #1e1f20 !important;
         border: 1px solid #3c4043 !important;
-        border-radius: 32px !important;
-        padding: 5px 15px !important;
+        border-radius: 40px !important;
+        height: 80px !important;
+    }
+    
+    .stChatInput textarea {
+        font-size: 1.6rem !important;
     }
 
     #MainMenu, footer, header { visibility: hidden; }
@@ -76,9 +95,9 @@ except Exception as e:
     st.error("📡 Connection Offline: Check Secrets.")
     st.stop()
 
-# --- 3. SIDEBAR (CONTROLS) ---
+# --- 3. SIDEBAR (CONTROLS ON RIGHT) ---
 with st.sidebar:
-    st.markdown("<h3 style='color:#e3e3e3; padding-bottom:20px;'>Nexus Omni</h3>", unsafe_allow_html=True)
+    st.markdown("<h2 style='color:#e3e3e3; font-size: 2.5rem;'>Nexus Omni</h2>", unsafe_allow_html=True)
     
     usage_mode = st.radio("Mode", ["Standard Chat", "Live Web Search", "Python Lab"])
     
@@ -102,7 +121,7 @@ with st.sidebar:
 st.markdown('<div class="google-header">Nexus Omni</div>', unsafe_allow_html=True)
 st.markdown('<div class="subtitle">How can I help you today, Adil?</div>', unsafe_allow_html=True)
 
-# Feature: Python Lab
+# Python Lab Sandbox
 if usage_mode == "Python Lab":
     st.markdown("### 🧪 Python Lab")
     with st.form("lab_form"):
@@ -123,7 +142,7 @@ if "messages" not in st.session_state:
     st.session_state.messages = []
 
 # Display centered messages
-col1, col2, col3 = st.columns([1, 4, 1])
+col1, col2, col3 = st.columns([0.5, 4, 0.5])
 with col2:
     for message in st.session_state.messages:
         with st.chat_message(message["role"], avatar="✨" if message["role"] == "assistant" else None):
