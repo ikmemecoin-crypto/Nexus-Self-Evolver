@@ -7,7 +7,8 @@ from PIL import Image
 from contextlib import redirect_stdout
 import io
 
-# --- 1. BALANCED UI & SIDEBAR RECOVERY ---
+# --- 1. UI RECOVERY ---
+# This "expanded" setting is the key to bringing the sidebar back
 st.set_page_config(page_title="Nexus Omni", layout="wide", initial_sidebar_state="expanded")
 
 st.markdown("""
@@ -19,23 +20,21 @@ st.markdown("""
         background-color: #1e1f20; 
         color: #e3e3e3; 
     }
-    
-    /* 🚀 THE SIDEBAR FIX: Hide ONLY the broken text, keep the sidebar panel visible */
-    [data-testid="collapsedControl"], button[kind="header"] {
+
+    /* 🚀 THE FIX: Hide ONLY the glitchy button, NOT the whole sidebar */
+    [data-testid="collapsedControl"] {
         display: none !important;
     }
     
-    /* This forces the sidebar to remain open and properly sized */
+    /* Force sidebar to be visible and prevent it from hiding */
     section[data-testid="stSidebar"] {
         background-color: #131314 !important; 
         border-right: 1px solid #333;
-        min-width: 320px !important;
         visibility: visible !important;
-        display: block !important;
+        width: 350px !important;
     }
 
     .main { background-color: #1e1f20; }
-    
     .nexus-header {
         font-size: 2.8rem; font-weight: 500;
         background: linear-gradient(90deg, #4285f4, #9b72cb, #d96570);
@@ -50,37 +49,25 @@ st.markdown("""
         border: 1px solid rgba(255,255,255,0.05) !important;
     }
     
-    .stChatInputContainer { 
-        position: fixed; 
-        bottom: 35px; 
-        border-radius: 32px !important; 
-        z-index: 1000; 
-    }
-    
+    .stChatInputContainer { position: fixed; bottom: 35px; border-radius: 32px !important; z-index: 1000; }
     #MainMenu, footer, header { visibility: hidden; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. AUTH & REPO ---
+# --- 2. AUTH ---
 try:
     client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
     g = Github(st.secrets["GH_TOKEN"])
     repo = g.get_repo(st.secrets["GH_REPO"])
 except Exception as e:
-    st.error(f"📡 Neural Core Offline: {e}")
+    st.error("📡 Neural Core Offline. Check Secrets.")
     st.stop()
 
-# --- 3. SIDEBAR NAVIGATION (RESTORED) ---
+# --- 3. SIDEBAR NAVIGATION ---
+# This part MUST be present for the sidebar to render any content
 with st.sidebar:
     st.markdown("<h2 style='color:#e3e3e3; margin-top:-30px;'>NEXUS OMNI</h2>", unsafe_allow_html=True)
     
-    # Cooldown Logic
-    if 'cooldown_end' in st.session_state and time.time() < st.session_state.cooldown_end:
-        remaining = int(st.session_state.cooldown_end - time.time())
-        st.warning(f"⏳ Cooldown: {remaining}s")
-        time.sleep(1)
-        st.rerun()
-
     usage_mode = st.radio("Operation Mode", ["Standard Chat", "Live Web Search", "Python Lab"])
     
     st.markdown("---")
@@ -103,13 +90,12 @@ with st.sidebar:
 # --- 4. MAIN INTERFACE ---
 st.markdown(f'<h1 class="nexus-header">Greetings, Adil</h1>', unsafe_allow_html=True)
 
-# PYTHON LAB (Local Sandbox)
+# Python Lab Logic
 if usage_mode == "Python Lab":
     st.info("🧪 **Python Lab**: Local code sandbox.")
     with st.form("lab_form"):
         code_input = st.text_area("Code Editor", value='print("Nexus is ready")', height=200)
         run_submitted = st.form_submit_button("▶️ Run Script")
-
     if run_submitted:
         st.markdown("### 🖥️ Console Output")
         output_buffer = io.StringIO()
@@ -121,7 +107,7 @@ if usage_mode == "Python Lab":
             st.error(f"Error: {e}")
     st.stop()
 
-# STANDARD CHAT
+# Chat Interface Logic
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
@@ -139,13 +125,11 @@ if audio_file or uploaded_img or prompt:
 
     with st.chat_message("assistant", avatar="✨"):
         try:
-            # Context Building
             contents = [f"User: Adil. Project: {project_folder}. History: {st.session_state.memory_data.get('chat_summary','')}"]
             if uploaded_img: contents.append(Image.open(uploaded_img))
             if audio_file: contents.append({"inline_data": {"data": audio_file.read(), "mime_type": "audio/wav"}})
             if prompt: contents.append(prompt)
 
-            # Tools Configuration
             tools = [{"google_search": {}}] if usage_mode == "Live Web Search" else None
             
             def stream_nexus():
@@ -155,8 +139,4 @@ if audio_file or uploaded_img or prompt:
             full_res = st.write_stream(stream_nexus())
             st.session_state.messages.append({"role": "assistant", "content": full_res})
         except Exception as e:
-            if "429" in str(e):
-                st.session_state.cooldown_end = time.time() + 30
-                st.warning("⚡ API Rate Limit Reached. Cooldown initiated.")
-            else:
-                st.error(f"Neural Error: {e}")
+            st.error(f"Neural Error: {e}")
