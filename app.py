@@ -166,7 +166,8 @@ with col2:
                 
                 def stream_nexus():
                     for chunk in client.models.generate_content_stream(model="gemini-2.0-flash", contents=contents, config={'tools': tools}):
-                        yield chunk.text
+                        if chunk.text:
+                            yield chunk.text
 
                 full_res = st.write_stream(stream_nexus())
                 st.session_state.messages.append({"role": "assistant", "content": full_res})
