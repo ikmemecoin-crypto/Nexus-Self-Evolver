@@ -5,24 +5,24 @@ import json
 import datetime
 from github import Github
 
-# --- 1. SETTINGS & STYLING ---
-st.set_page_config(page_title="NEXUS | AI COMMAND", layout="wide", initial_sidebar_state="expanded")
+# --- 1. SETTINGS & STYLING (The "Attractive" Fix) ---
+st.set_page_config(page_title="NEXUS COMMAND", layout="wide", initial_sidebar_state="expanded")
 
-# Custom CSS for the "Unique & Attractive" Look
+# CORRECTED PARAMETER: unsafe_allow_html=True
 st.markdown("""
     <style>
-    .main { background-color: #0e1117; color: #e0e0e0; }
+    .main { background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%); color: #ffffff; }
     .stButton>button {
-        background: linear-gradient(45deg, #00f2fe 0%, #4facfe 100%);
-        color: white; border: none; border-radius: 20px;
-        font-weight: bold; width: 100%; transition: 0.3s;
+        background: linear-gradient(90deg, #00d2ff 0%, #3a7bd5 100%);
+        color: white; border: none; border-radius: 12px;
+        padding: 10px; font-weight: bold; width: 100%; box-shadow: 0 4px 15px rgba(0,0,0,0.3);
     }
-    .stButton>button:hover { transform: scale(1.02); box-shadow: 0px 0px 15px #4facfe; }
-    .stTextArea textarea { background-color: #1a1c24; color: #00f2fe; border: 1px solid #4facfe; }
-    [data-testid="stSidebar"] { background-color: #161b22; border-right: 1px solid #30363d; }
-    h1 { color: #4facfe; text-shadow: 0px 0px 10px #4facfe; }
+    .stTextArea textarea { background-color: rgba(255, 255, 255, 0.05); color: #00d2ff; border: 1px solid #3a7bd5; border-radius: 10px; }
+    [data-testid="stSidebar"] { background-color: #0b0e14; border-right: 1px solid #3a7bd5; }
+    h1, h2, h3 { color: #00d2ff; font-family: 'Courier New', Courier, monospace; }
+    .css-1kyxreq { background-color: rgba(0,0,0,0); }
     </style>
-    """, unsafe_call_unsafe_javascript=True)
+    """, unsafe_allow_html=True)
 
 # --- 2. AUTH & KEYS ---
 try:
@@ -30,22 +30,22 @@ try:
     TAVILY_KEY = st.secrets["TAVILY_API_KEY"]
     GH_TOKEN = st.secrets["GITHUB_TOKEN"]
     GH_REPO = st.secrets["GITHUB_REPO"]
-except:
-    st.error("📡 CONNECTION ERROR: Secrets missing in Streamlit Cloud.")
+except Exception as e:
+    st.error(f"📡 CONNECTION OFFLINE: {e}")
     st.stop()
 
 client = genai.Client(api_key=GEMINI_KEY)
 tavily = TavilyClient(api_key=TAVILY_KEY)
 g = Github(GH_TOKEN)
 
-# --- 3. SYSTEM FUNCTIONS ---
+# --- 3. PERSISTENT MEMORY ---
 def get_memory():
     try:
         repo = g.get_repo(GH_REPO)
         file = repo.get_contents("memory.json")
         return json.loads(file.decoded_content.decode())
     except:
-        return {"user_name": "Commander", "history": []}
+        return {"user_name": "Azhan & Zohan"}
 
 def update_file(path, content, msg):
     repo = g.get_repo(GH_REPO)
@@ -55,73 +55,68 @@ def update_file(path, content, msg):
     except:
         repo.create_file(path, msg, content)
 
-# --- 4. SIDEBAR IDENTITY ---
+# --- 4. THE INTERFACE ---
 mem = get_memory()
+user = mem.get('user_name', 'Commander')
+
 with st.sidebar:
     st.title("🧬 NEXUS CORE")
+    st.success("BRAIN: CONNECTED")
+    st.info(f"USER: {user}")
     st.markdown("---")
-    st.write(f"📡 **STATUS:** Operational")
-    st.write(f"👤 **USER:** {mem.get('user_name')}")
     
-    with st.expander("⚙️ Identity Settings"):
-        new_name = st.text_input("Change Alias", value=mem.get('user_name'))
-        if st.button("Update DNA"):
+    with st.expander("👤 IDENTITY SETTINGS"):
+        new_name = st.text_input("Change Alias", value=user)
+        if st.button("SYNC DNA"):
             mem['user_name'] = new_name
             update_file("memory.json", json.dumps(mem), "Update Identity")
             st.rerun()
-    
-    st.markdown("---")
-    st.caption(f"Nexus OS v4.0.26 | {datetime.date.today()}")
 
-# --- 5. MAIN INTERFACE ---
-col_main, col_stats = st.columns([2, 1])
+# Main Dashboard
+st.title(f"Welcome to the Nexus, {user}")
+st.write("### ⚡ Command & Evolution Center")
 
-with col_main:
-    st.title(f"Greetings, {mem.get('user_name')}")
-    st.write("### 🚀 Evolution Command Center")
+# Create a clean layout
+col1, col2 = st.columns([2, 1])
+
+with col1:
+    task = st.text_area("What is your next command for the system?", 
+                        placeholder="Example: Add a live world clock and a weather widget...",
+                        height=180)
     
-    task = st.text_area("Input the next phase of your AI's evolution:", 
-                        placeholder="e.g. Add a 3D glass-card style dashboard for weather and news...",
-                        height=150)
-    
-    if st.button("⚡ INITIATE SYSTEM EVOLUTION"):
+    if st.button("🚀 INITIATE SYSTEM EVOLUTION"):
         if task:
-            with st.status("📡 NEXUS is researching & rewriting...", expanded=True):
-                st.write("Scanning global 2026 tech trends...")
-                search = tavily.search(query=f"Modern Streamlit python UI code for {task}", search_depth="advanced")
+            with st.status("🧬 Synthesis in progress...", expanded=True):
+                st.write("Researching 2026 patterns...")
+                res = tavily.search(query=f"Python Streamlit UI code for {task}", search_depth="advanced")
                 
-                st.write("Synthesizing New Code Architecture...")
-                prompt = f"""
-                You are NEXUS AI. Rewrite the entire 'app.py' to include all current GitHub/Memory logic 
-                plus this new feature: {task}. 
-                Current context: {search}.
-                Ensure the UI remains attractive with the custom CSS provided.
-                Return ONLY raw code.
-                """
+                st.write("Rewriting System Code...")
+                prompt = f"Rewrite the whole app.py. Keep GitHub and Memory logic. Add: {task}. Use {res}. Output RAW Python code only."
                 response = client.models.generate_content(model="gemini-2.0-flash", contents=prompt)
                 st.session_state.draft = response.text
         else:
-            st.warning("Please enter a command first.")
+            st.warning("Please enter a command.")
 
-with col_stats:
+with col2:
     st.write("### 📊 System Intel")
-    st.info(f"**Current Focus:** {task if task else 'Awaiting Input'}")
+    st.metric("Version", "4.0.26")
+    st.metric("Latency", "Optimal")
     if "draft" in st.session_state:
-        st.success("✨ New DNA Sequence Ready")
+        st.success("✨ New DNA Sequence Prepared")
 
-# --- 6. DEPLOYMENT ZONE ---
+# Deployment Logic
 if "draft" in st.session_state:
     st.divider()
     st.subheader("🧬 Proposed Evolution DNA")
     st.code(st.session_state.draft, language="python")
     
-    col1, col2 = st.columns(2)
-    with col1:
+    c1, c2 = st.columns(2)
+    with c1:
         if st.button("✅ PERMIT OVERWRITE"):
             update_file("app.py", st.session_state.draft, "🧬 NEXUS EVOLUTION")
             st.balloons()
-            st.toast("System updating... Refresh in 60 seconds.")
-    with col2:
-        if st.button("❌ ABORT"):
+            st.toast("Evolving... Check back in 60 seconds!")
+    with c2:
+        if st.button("❌ DISCARD"):
             del st.session_state.draft
             st.rerun()
