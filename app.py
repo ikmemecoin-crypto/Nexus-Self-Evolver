@@ -7,10 +7,9 @@ from PIL import Image
 from contextlib import redirect_stdout
 import io
 
-# --- 1. CLEAN UI & GLITCH KILLER ---
+# --- 1. BALANCED UI & GLITCH REMOVAL ---
 st.set_page_config(page_title="Nexus Omni", layout="wide")
 
-# This block fixes the "keyboard_double" glitch and sets the dark theme
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&display=swap');
@@ -21,13 +20,16 @@ st.markdown("""
         color: #e3e3e3; 
     }
     
-    /* 🚀 THE PERMANENT FIX: Kills the hover glitch and stray icon text */
-    [data-testid="collapsedControl"], 
-    button[kind="header"], 
-    .st-emotion-cache-6qob1r, 
-    .st-emotion-cache-10oztos {
+    /* 🚀 SURGICAL FIX: Hide ONLY the broken icon text, keep the sidebar */
+    [data-testid="collapsedControl"], button[kind="header"] {
         display: none !important;
-        visibility: hidden !important;
+    }
+    
+    /* This prevents the sidebar from being 'squished' */
+    section[data-testid="stSidebar"] {
+        background-color: #131314 !important; 
+        border-right: 1px solid #333;
+        min-width: 300px !important;
     }
 
     .main { background-color: #1e1f20; }
@@ -37,11 +39,6 @@ st.markdown("""
         background: linear-gradient(90deg, #4285f4, #9b72cb, #d96570);
         -webkit-background-clip: text; -webkit-text-fill-color: transparent;
         margin-bottom: 2rem;
-    }
-    
-    [data-testid="stSidebar"] { 
-        background-color: #131314 !important; 
-        border-right: 1px solid #333; 
     }
     
     div[data-testid="stChatMessage"] {
@@ -62,7 +59,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. AUTH & REPO ---
+# --- 2. CORE AUTH ---
 try:
     client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
     g = Github(st.secrets["GH_TOKEN"])
@@ -86,9 +83,9 @@ with st.sidebar:
     
     st.markdown("---")
     project_folder = st.selectbox("Select Project", ["General", "Coding", "Personal", "Research"])
+    
+    # Persistent Memory Engine
     memory_filename = f"memory_{project_folder.lower()}.json"
-
-    # Persistent DNA Management
     if 'memory_data' not in st.session_state or st.session_state.get('last_folder') != project_folder:
         try:
             mem_file = repo.get_contents(memory_filename)
@@ -99,12 +96,12 @@ with st.sidebar:
 
     model_choice = st.selectbox("Neural Engine", ["gemini-2.0-flash", "gemini-1.5-pro"])
     uploaded_img = st.file_uploader("📷 Vision Link", type=["jpg", "png", "jpeg"])
-    audio_file = st.audio_input("🎙️ Voice Link")
+    audio_file = st.audio_input("🎙️ Voice Neural Link")
 
-# --- 4. MAIN ENGINE ---
+# --- 4. MAIN INTERFACE ---
 st.markdown(f'<h1 class="nexus-header">Greetings, Adil</h1>', unsafe_allow_html=True)
 
-# PYTHON LAB (Local Execution)
+# PYTHON LAB (Local Sandbox)
 if usage_mode == "Python Lab":
     st.info("🧪 **Python Lab**: Local code sandbox.")
     with st.form("lab_form"):
@@ -117,9 +114,9 @@ if usage_mode == "Python Lab":
         try:
             with redirect_stdout(output_buffer):
                 exec(code_input)
-            st.code(output_buffer.getvalue() or "Process complete (no output).")
+            st.code(output_buffer.getvalue() or "Success: No output.")
         except Exception as e:
-            st.error(f"Execution Error: {e}")
+            st.error(f"Error: {e}")
     st.stop()
 
 # STANDARD CHAT
@@ -140,13 +137,13 @@ if audio_file or uploaded_img or prompt:
 
     with st.chat_message("assistant", avatar="✨"):
         try:
-            # Build Context Payload
+            # Context Building
             contents = [f"User: Adil. Project: {project_folder}. History: {st.session_state.memory_data.get('chat_summary','')}"]
             if uploaded_img: contents.append(Image.open(uploaded_img))
             if audio_file: contents.append({"inline_data": {"data": audio_file.read(), "mime_type": "audio/wav"}})
             if prompt: contents.append(prompt)
 
-            # Web Search Tooling
+            # Tools Configuration
             tools = [{"google_search": {}}] if usage_mode == "Live Web Search" else None
             
             def stream_nexus():
