@@ -4,24 +4,25 @@ import json
 import time
 from github import Github
 
-# --- 1. THE NEXUS-GEMINI ENGINE (Permanently Visible Input) ---
+# --- 1. NEXUS-GEMINI GRAY UI ENGINE ---
 st.set_page_config(page_title="Nexus", layout="wide")
 
 st.markdown("""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&display=swap');
     
+    /* Overall Aesthetic */
     html, body, [class*="st-"] {
-        font-family: 'Inter', sans-serif;
-        background-color: #131314;
+        font-family: 'Outfit', sans-serif;
+        background-color: #1e1f20; /* Sophisticated Gray Background */
         color: #e3e3e3;
     }
 
-    .main { background-color: #131314; }
+    .main { background-color: #1e1f20; }
 
     /* Gemini-style Gradient Header */
     .nexus-header {
-        font-size: 2.8rem;
+        font-size: 3rem;
         font-weight: 500;
         background: linear-gradient(90deg, #4285f4, #9b72cb, #d96570);
         -webkit-background-clip: text;
@@ -30,26 +31,47 @@ st.markdown("""
         margin-bottom: 2rem;
     }
 
-    /* Fixed Gemini Input Bar at the Bottom */
+    /* Modern Tab/Message Style */
+    div[data-testid="stChatMessage"] {
+        background-color: #282a2c !important; /* Slightly lighter gray tabs */
+        border-radius: 20px !important;
+        padding: 15px !important;
+        margin-bottom: 10px !important;
+        border: 1px solid rgba(255,255,255,0.05) !important;
+    }
+
+    /* Fixed Floating Input Bar */
     .stChatInputContainer {
         position: fixed;
         bottom: 30px;
-        border-radius: 28px !important;
+        border-radius: 30px !important;
         border: 1px solid #444746 !important;
-        background-color: #1e1f20 !important;
+        background-color: #282a2c !important;
         z-index: 1000;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.3);
     }
     
-    /* Hide Streamlit Branding */
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header {visibility: hidden;}
-
-    /* Sidebar Styling */
+    /* Clean Sidebar */
     [data-testid="stSidebar"] {
-        background-color: #1e1f20 !important;
+        background-color: #131314 !important; /* Darker Sidebar for contrast */
         border-right: 1px solid #333;
     }
+
+    /* Buttons Style */
+    .stButton>button {
+        border-radius: 12px;
+        background-color: #2d2f31;
+        color: white;
+        border: 1px solid #444746;
+        transition: 0.3s;
+    }
+    .stButton>button:hover {
+        background-color: #3c4043;
+        border-color: #8e918f;
+    }
+
+    /* Hide Streamlit elements */
+    #MainMenu, footer, header {visibility: hidden;}
     </style>
     """, unsafe_allow_html=True)
 
@@ -73,7 +95,7 @@ if 'memory_data' not in st.session_state:
 
 # --- 4. SIDEBAR ---
 with st.sidebar:
-    st.markdown("<h1 style='color:#e3e3e3; font-weight:400;'>Nexus</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='color:#e3e3e3; font-weight:400; font-family:Outfit;'>Nexus</h1>", unsafe_allow_html=True)
     if st.button("+ New Chat", use_container_width=True):
         st.session_state.messages = []
         st.rerun()
@@ -116,7 +138,7 @@ if len(st.session_state.messages) > 0 and st.session_state.messages[-1]["role"] 
             else:
                 st.error(f"Error: {e}")
 
-# PERMANENT ASK TAB (STAYS AT BOTTOM)
+# PERMANENT ASK TAB
 if prompt := st.chat_input("Enter a prompt here"):
     st.session_state.messages.append({"role": "user", "content": prompt})
     st.rerun()
