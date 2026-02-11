@@ -1,11 +1,11 @@
 import streamlit as st
 from google import genai
 import json
-import time
 from github import Github
+from PIL import Image
 
-# --- 1. NEXUS ULTRA UI ENGINE ---
-st.set_page_config(page_title="Nexus OS", layout="wide")
+# --- 1. NEXUS ULTRA UI ---
+st.set_page_config(page_title="Nexus Ultra", layout="wide")
 
 st.markdown("""
     <style>
@@ -13,7 +13,7 @@ st.markdown("""
     html, body, [class*="st-"] { font-family: 'Outfit', sans-serif; background-color: #1e1f20; color: #e3e3e3; }
     .main { background-color: #1e1f20; }
     .nexus-header {
-        font-size: 3rem; font-weight: 500;
+        font-size: 2.8rem; font-weight: 500;
         background: linear-gradient(90deg, #4285f4, #9b72cb, #d96570);
         -webkit-background-clip: text; -webkit-text-fill-color: transparent;
         margin-bottom: 2rem;
@@ -28,16 +28,16 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. SECURE AUTH ---
+# --- 2. CORE AUTH ---
 try:
     client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
     g = Github(st.secrets["GH_TOKEN"])
     repo = g.get_repo(st.secrets["GH_REPO"])
-except Exception as e:
-    st.error(f"📡 Nexus Core Offline: {e}")
+except:
+    st.error("📡 Neural Core Offline.")
     st.stop()
 
-# --- 3. PERSISTENT DNA (MEMORY) ---
+# --- 3. MEMORY ---
 if 'memory_data' not in st.session_state:
     try:
         mem_file = repo.get_contents("memory.json")
@@ -46,21 +46,21 @@ if 'memory_data' not in st.session_state:
         st.session_state.memory_data = {"user_name": "Adil", "chat_summary": ""}
     st.session_state.user_name = st.session_state.memory_data.get("user_name", "Adil")
 
-# --- 4. SIDEBAR CONTROLS ---
+# --- 4. SIDEBAR (VISION, VOICE, MODEL) ---
 with st.sidebar:
-    st.markdown("<h2 style='color:#e3e3e3; font-weight:400;'>NEXUS OS</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='color:#e3e3e3;'>NEXUS OS</h2>", unsafe_allow_html=True)
     model_choice = st.selectbox("Intelligence Level", ["gemini-2.0-flash", "gemini-1.5-pro"])
     
-    if st.button("+ Reset Neural Link", use_container_width=True):
-        st.session_state.messages = []
-        st.rerun()
-    
     st.markdown("---")
-    st.write("🎙️ **Voice Neural Link**")
-    # This widget works on mobile!
-    audio_file = st.audio_input("Speak to the Council")
+    st.write("📷 **Vision Link**")
+    uploaded_img = st.file_uploader("Upload an image", type=["jpg", "png", "jpeg"])
+    if uploaded_img:
+        st.image(uploaded_img, caption="Nexus Vision Active", use_container_width=True)
+
+    st.write("🎙️ **Voice Link**")
+    audio_file = st.audio_input("Speak to Nexus")
     
-    if st.button("💾 Archive DNA", use_container_width=True):
+    if st.button("💾 Sync Memory", use_container_width=True):
         history = "\n".join([f"{m['role']}: {m['content']}" for m in st.session_state.get('messages', [])])
         st.session_state.memory_data['chat_summary'] = history[-800:]
         content = json.dumps(st.session_state.memory_data)
@@ -68,7 +68,7 @@ with st.sidebar:
         repo.update_file(f.path, "Neural Sync", content, f.sha)
         st.toast("Nexus DNA Updated")
 
-# --- 5. MAIN INTERFACE ---
+# --- 5. CHAT ENGINE ---
 st.markdown(f'<h1 class="nexus-header">Greetings, {st.session_state.user_name}</h1>', unsafe_allow_html=True)
 
 if "messages" not in st.session_state:
@@ -79,26 +79,31 @@ for message in st.session_state.messages:
         st.markdown(message["content"])
 
 # --- 6. MULTIMODAL PROCESSING ---
-prompt = st.chat_input("Ask Nexus anything...")
+prompt = st.chat_input("Analyze this...")
 
-if audio_file or prompt:
-    display_text = prompt if prompt else "🎤 [Neural Audio Command]"
+if audio_file or uploaded_img or prompt:
+    display_text = prompt if prompt else "🧬 [Nexus Multimodal Processing...]"
     st.session_state.messages.append({"role": "user", "content": display_text})
     with st.chat_message("user"):
         st.markdown(display_text)
 
     with st.chat_message("assistant", avatar="✨"):
         try:
-            # Prepare Multi-modal Payload
+            # Building Multimodal Payload
             contents = [f"User: {st.session_state.user_name}. Summary: {st.session_state.memory_data.get('chat_summary','')}"]
+            
+            if uploaded_img:
+                img = Image.open(uploaded_img)
+                contents.append(img)
             
             if audio_file:
                 audio_bytes = audio_file.read()
                 contents.append({"inline_data": {"data": audio_bytes, "mime_type": "audio/wav"}})
-                contents.append("Listen to this audio and reply.")
             
             if prompt:
                 contents.append(prompt)
+            else:
+                contents.append("Please analyze the provided media.")
 
             # STREAMING ENGINE
             def stream_nexus():
@@ -110,6 +115,6 @@ if audio_file or prompt:
             
         except Exception as e:
             if "429" in str(e):
-                st.warning("⚡ API Cooldown. Waiting 30s...")
+                st.warning("⚡ API Cooling Down. Wait 30s...")
             else:
                 st.error(f"Neural Error: {e}")
