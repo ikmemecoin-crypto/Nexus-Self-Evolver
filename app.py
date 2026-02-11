@@ -7,9 +7,8 @@ from PIL import Image
 from contextlib import redirect_stdout
 import io
 
-# --- 1. UI SETUP & ARROW TRANSFORMATION ---
-# Moved to the top to prevent NameErrors
-st.set_page_config(page_title="Nexus Omni", layout="wide", initial_sidebar_state="expanded")
+# --- 1. CLEAN UI (NO ARROW/GLITCH CODE) ---
+st.set_page_config(page_title="Nexus Omni", layout="wide")
 
 st.markdown("""
     <style>
@@ -21,60 +20,50 @@ st.markdown("""
         color: #e3e3e3; 
     }
     
-    /* 🚀 THE ARROW FIX: Transforms the glitch into a Navigation Sign */
-    [data-testid="collapsedControl"] {
-        display: block !important;
-        visibility: visible !important;
-    }
-    
-    /* Hide the 'keyboard_double' text but keep the button clickable */
-    [data-testid="collapsedControl"] span {
-        font-size: 0px !important;
-    }
-    
-    /* Inject the permanent Arrow Sign ➔ */
-    [data-testid="collapsedControl"] span::before {
-        content: "➔" !important;
-        font-size: 24px !important;
-        color: #4285f4 !important; /* Professional Blue */
-        display: block !important;
-        cursor: pointer;
-    }
-
-    /* Sidebar and Layout Stability */
-    section[data-testid="stSidebar"] {
-        background-color: #131314 !important; 
-        border-right: 1px solid #333;
-        min-width: 300px !important;
-    }
     .main { background-color: #1e1f20; }
+    
     .nexus-header {
         font-size: 2.8rem; font-weight: 500;
         background: linear-gradient(90deg, #4285f4, #9b72cb, #d96570);
         -webkit-background-clip: text; -webkit-text-fill-color: transparent;
         margin-bottom: 2rem;
     }
-    div[data-testid="stChatMessage"] {
-        background-color: #2b2d2f !important; border-radius: 20px !important;
-        padding: 15px !important; border: 1px solid rgba(255,255,255,0.05) !important;
+    
+    [data-testid="stSidebar"] { 
+        background-color: #131314 !important; 
+        border-right: 1px solid #333; 
     }
-    .stChatInputContainer { position: fixed; bottom: 35px; border-radius: 32px !important; z-index: 1000; }
+    
+    div[data-testid="stChatMessage"] {
+        background-color: #2b2d2f !important; 
+        border-radius: 20px !important;
+        padding: 15px !important; 
+        border: 1px solid rgba(255,255,255,0.05) !important;
+    }
+    
+    .stChatInputContainer { 
+        position: fixed; 
+        bottom: 35px; 
+        border-radius: 32px !important; 
+        z-index: 1000; 
+    }
+    
     #MainMenu, footer, header { visibility: hidden; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. AUTHENTICATION ---
+# --- 2. CORE AUTH ---
 try:
     client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
     g = Github(st.secrets["GH_TOKEN"])
     repo = g.get_repo(st.secrets["GH_REPO"])
 except Exception as e:
-    st.error("📡 Neural Core Offline. Please check your Secrets configuration.")
+    st.error(f"📡 Neural Core Offline: {e}")
     st.stop()
 
-# --- 3. SIDEBAR (CONTROL PANEL) ---
+# --- 3. SIDEBAR NAVIGATION ---
 with st.sidebar:
-    st.markdown("<h2 style='color:#e3e3e3;'>NEXUS OMNI</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='color:#e3e3e3; margin-top:-30px;'>NEXUS OMNI</h2>", unsafe_allow_html=True)
     
     usage_mode = st.radio("Operation Mode", ["Standard Chat", "Live Web Search", "Python Lab"])
     
@@ -110,9 +99,9 @@ if usage_mode == "Python Lab":
         try:
             with redirect_stdout(output_buffer):
                 exec(code_input)
-            st.code(output_buffer.getvalue() or "Success: Code executed (no output).")
+            st.code(output_buffer.getvalue() or "Success: No output.")
         except Exception as e:
-            st.error(f"Execution Error: {e}")
+            st.error(f"Error: {e}")
     st.stop()
 
 # Chat System
@@ -126,20 +115,18 @@ for message in st.session_state.messages:
 prompt = st.chat_input("Command Nexus...")
 
 if audio_file or uploaded_img or prompt:
-    display_text = prompt if prompt else "🧬 [Multimedia Link Established]"
+    display_text = prompt if prompt else "🧬 [Multimedia Received]"
     st.session_state.messages.append({"role": "user", "content": display_text})
     with st.chat_message("user"):
         st.markdown(display_text)
 
     with st.chat_message("assistant", avatar="✨"):
         try:
-            # Context Synthesis
             contents = [f"User: Adil. Project: {project_folder}. History: {st.session_state.memory_data.get('chat_summary','')}"]
             if uploaded_img: contents.append(Image.open(uploaded_img))
             if audio_file: contents.append({"inline_data": {"data": audio_file.read(), "mime_type": "audio/wav"}})
             if prompt: contents.append(prompt)
 
-            # Tool Selection
             tools = [{"google_search": {}}] if usage_mode == "Live Web Search" else None
             
             def stream_nexus():
