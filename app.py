@@ -1,6 +1,7 @@
 import streamlit as st
 from google import genai
 import json
+import time
 from github import Github
 
 # --- 1. CORE CONFIG ---
@@ -15,16 +16,13 @@ except Exception as e:
     st.error(f"📡 Auth Error: {e}")
     st.stop()
 
-# --- 3. IDENTITY & MEMORY PERSISTENCE ---
+# --- 3. IDENTITY & MEMORY ---
 if 'memory_data' not in st.session_state:
     try:
-        # Pull from GitHub
         mem_file = repo.get_contents("memory.json")
         st.session_state.memory_data = json.loads(mem_file.decoded_content.decode())
     except:
-        # Default if GitHub is empty
         st.session_state.memory_data = {"user_name": "Adil", "chat_summary": "Initial sync."}
-    
     st.session_state.user_name = st.session_state.memory_data.get("user_name", "Adil")
 
 # --- 4. SIDEBAR ---
@@ -34,15 +32,12 @@ with st.sidebar:
     
     if st.button("💾 Archive Neural Logs"):
         with st.spinner("Archiving..."):
-            # Cleanly format the history for the save file
             history_text = ""
             if "messages" in st.session_state:
                 for m in st.session_state.messages:
                     history_text += f"{m['role']}: {m['content']}\n"
-            
-            st.session_state.memory_data['chat_summary'] = history_text[-1000:]
+            st.session_state.memory_data['chat_summary'] = history_text[-500:]
             content = json.dumps(st.session_state.memory_data)
-            
             try:
                 f = repo.get_contents("memory.json")
                 repo.update_file(f.path, "Archive Chat Memory", content, f.sha)
@@ -57,18 +52,15 @@ st.title(f"Neural Council: {st.session_state.user_name}")
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Show history
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-# Chat Input
 if prompt := st.chat_input("Ask the Council anything..."):
-    # Add user message to UI immediately
     st.session_state.messages.append({"role": "user", "content": prompt})
-    st.rerun() # Refresh to show user bubble before AI thinks
+    st.rerun()
 
-# AI Response Generation (triggered after rerun)
+# AI Response Generation
 if len(st.session_state.messages) > 0 and st.session_state.messages[-1]["role"] == "user":
     with st.chat_message("assistant"):
         try:
@@ -80,4 +72,9 @@ if len(st.session_state.messages) > 0 and st.session_state.messages[-1]["role"] 
             st.markdown(response.text)
             st.session_state.messages.append({"role": "assistant", "content": response.text})
         except Exception as e:
-            st.error(f"Brain Glitch: {e}")
+            if "429" in str(e):
+                st.warning("⚠️ System Overloaded. API is cooling down. Please wait 30 seconds and try again.")
+                if st.button("🔄 Retry Response"):
+                    st.rerun()
+            else:
+                st.error(f"Brain Glitch: {e}")
