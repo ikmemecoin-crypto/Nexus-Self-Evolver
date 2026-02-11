@@ -11,10 +11,10 @@ st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&display=swap');
     
-    /* Overall Aesthetic */
+    /* Global Background Shift to Gray */
     html, body, [class*="st-"] {
         font-family: 'Outfit', sans-serif;
-        background-color: #1e1f20; /* Sophisticated Gray Background */
+        background-color: #1e1f20; /* Professional Charcoal Gray */
         color: #e3e3e3;
     }
 
@@ -31,46 +31,49 @@ st.markdown("""
         margin-bottom: 2rem;
     }
 
-    /* Modern Tab/Message Style */
+    /* Elevated Message Bubbles */
     div[data-testid="stChatMessage"] {
-        background-color: #282a2c !important; /* Slightly lighter gray tabs */
-        border-radius: 20px !important;
-        padding: 15px !important;
-        margin-bottom: 10px !important;
-        border: 1px solid rgba(255,255,255,0.05) !important;
+        background-color: #2b2d2f !important; /* Lighter Gray for Chat Tabs */
+        border-radius: 24px !important;
+        padding: 18px !important;
+        margin-bottom: 12px !important;
+        border: 1px solid rgba(255,255,255,0.03) !important;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
     }
 
     /* Fixed Floating Input Bar */
     .stChatInputContainer {
         position: fixed;
-        bottom: 30px;
-        border-radius: 30px !important;
+        bottom: 35px;
+        border-radius: 32px !important;
         border: 1px solid #444746 !important;
-        background-color: #282a2c !important;
+        background-color: #2b2d2f !important;
         z-index: 1000;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        box-shadow: 0 10px 30px rgba(0,0,0,0.2);
     }
     
-    /* Clean Sidebar */
+    /* Contrast Sidebar */
     [data-testid="stSidebar"] {
-        background-color: #131314 !important; /* Darker Sidebar for contrast */
+        background-color: #131314 !important; /* Deep Dark Sidebar for Contrast */
         border-right: 1px solid #333;
     }
 
-    /* Buttons Style */
+    /* Button Polish */
     .stButton>button {
-        border-radius: 12px;
+        border-radius: 14px;
         background-color: #2d2f31;
-        color: white;
+        color: #e3e3e3;
         border: 1px solid #444746;
-        transition: 0.3s;
+        padding: 8px 24px;
+        transition: all 0.2s ease;
     }
     .stButton>button:hover {
         background-color: #3c4043;
         border-color: #8e918f;
+        transform: translateY(-1px);
     }
 
-    /* Hide Streamlit elements */
+    /* Clean UI Overrides */
     #MainMenu, footer, header {visibility: hidden;}
     </style>
     """, unsafe_allow_html=True)
@@ -81,7 +84,7 @@ try:
     g = Github(st.secrets["GH_TOKEN"])
     repo = g.get_repo(st.secrets["GH_REPO"])
 except:
-    st.error("📡 AUTH ERROR: Check your Streamlit Secrets.")
+    st.error("📡 AUTH ERROR: Connection to Nexus Core Failed.")
     st.stop()
 
 # --- 3. PERSISTENT MEMORY ---
@@ -107,10 +110,10 @@ with st.sidebar:
         content = json.dumps(st.session_state.memory_data)
         f = repo.get_contents("memory.json")
         repo.update_file(f.path, "Update Nexus Memory", content, f.sha)
-        st.toast("Memory Synced")
+        st.toast("Nexus DNA Updated")
 
 # --- 5. MAIN CHAT INTERFACE ---
-st.markdown(f'<h1 class="nexus-header">Hello, {st.session_state.user_name}</h1>', unsafe_allow_html=True)
+st.markdown(f'<h1 class="nexus-header">Greetings, {st.session_state.user_name}</h1>', unsafe_allow_html=True)
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
@@ -122,23 +125,4 @@ for message in st.session_state.messages:
         st.markdown(message["content"])
 
 # AI PROCESSING LOGIC
-if len(st.session_state.messages) > 0 and st.session_state.messages[-1]["role"] == "user":
-    with st.chat_message("assistant", avatar="✨"):
-        try:
-            ctx = st.session_state.memory_data.get('chat_summary', 'No history.')
-            response = client.models.generate_content(
-                model="gemini-2.0-flash",
-                contents=f"User: {st.session_state.user_name}. History: {ctx}. Task: {st.session_state.messages[-1]['content']}"
-            )
-            st.markdown(response.text)
-            st.session_state.messages.append({"role": "assistant", "content": response.text})
-        except Exception as e:
-            if "429" in str(e):
-                st.warning("⚡ Nexus is cooling down. Please wait 30 seconds.")
-            else:
-                st.error(f"Error: {e}")
-
-# PERMANENT ASK TAB
-if prompt := st.chat_input("Enter a prompt here"):
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    st.rerun()
+if len(st.session_state.
