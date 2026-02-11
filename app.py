@@ -5,118 +5,78 @@ import json
 import datetime
 from github import Github
 
-# --- 1. SETTINGS & STYLING (The "Attractive" Fix) ---
-st.set_page_config(page_title="NEXUS COMMAND", layout="wide", initial_sidebar_state="expanded")
+# --- 1. SETTINGS & STYLING ---
+st.set_page_config(page_title="NEXUS COMMAND", layout="wide")
 
-# CORRECTED PARAMETER: unsafe_allow_html=True
 st.markdown("""
     <style>
     .main { background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%); color: #ffffff; }
-    .stButton>button {
-        background: linear-gradient(90deg, #00d2ff 0%, #3a7bd5 100%);
-        color: white; border: none; border-radius: 12px;
-        padding: 10px; font-weight: bold; width: 100%; box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-    }
-    .stTextArea textarea { background-color: rgba(255, 255, 255, 0.05); color: #00d2ff; border: 1px solid #3a7bd5; border-radius: 10px; }
+    .stButton>button { background: #3a7bd5; color: white; border-radius: 12px; font-weight: bold; }
     [data-testid="stSidebar"] { background-color: #0b0e14; border-right: 1px solid #3a7bd5; }
-    h1, h2, h3 { color: #00d2ff; font-family: 'Courier New', Courier, monospace; }
-    .css-1kyxreq { background-color: rgba(0,0,0,0); }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. AUTH & KEYS ---
+# --- 2. AUTH ---
 try:
-    GEMINI_KEY = st.secrets["GEMINI_API_KEY"]
-    TAVILY_KEY = st.secrets["TAVILY_API_KEY"]
-    GH_TOKEN = st.secrets["GITHUB_TOKEN"]
-    GH_REPO = st.secrets["GITHUB_REPO"]
+    client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
+    tavily = TavilyClient(api_key=st.secrets["TAVILY_API_KEY"])
+    g = Github(st.secrets["GH_TOKEN"])
+    repo_name = st.secrets["GH_REPO"]
 except Exception as e:
-    st.error(f"📡 CONNECTION OFFLINE: {e}")
+    st.error("📡 AUTH ERROR: Please check your Streamlit Secrets.")
     st.stop()
 
-client = genai.Client(api_key=GEMINI_KEY)
-tavily = TavilyClient(api_key=TAVILY_KEY)
-g = Github(GH_TOKEN)
-
-# --- 3. PERSISTENT MEMORY ---
-def get_memory():
-    try:
-        repo = g.get_repo(GH_REPO)
-        file = repo.get_contents("memory.json")
-        return json.loads(file.decoded_content.decode())
-    except:
-        return {"user_name": "Azhan & Zohan"}
-
+# --- 3. CORE FUNCTIONS ---
 def update_file(path, content, msg):
-    repo = g.get_repo(GH_REPO)
+    repo = g.get_repo(repo_name)
     try:
         sha = repo.get_contents(path).sha
         repo.update_file(path, msg, content, sha)
     except:
         repo.create_file(path, msg, content)
 
-# --- 4. THE INTERFACE ---
-mem = get_memory()
-user = mem.get('user_name', 'Commander')
+# --- 4. UI ---
+# Load User Name from local memory or GitHub
+if 'user_name' not in st.session_state:
+    try:
+        repo = g.get_repo(repo_name)
+        mem = json.loads(repo.get_contents("memory.json").decoded_content.decode())
+        st.session_state.user_name = mem.get("user_name", "Commander")
+    except:
+        st.session_state.user_name = "Adil"
 
 with st.sidebar:
     st.title("🧬 NEXUS CORE")
-    st.success("BRAIN: CONNECTED")
-    st.info(f"USER: {user}")
-    st.markdown("---")
+    st.success("BRAIN: ONLINE")
+    st.write(f"USER: **{st.session_state.user_name}**")
     
-    with st.expander("👤 IDENTITY SETTINGS"):
-        new_name = st.text_input("Change Alias", value=user)
-        if st.button("SYNC DNA"):
-            mem['user_name'] = new_name
-            update_file("memory.json", json.dumps(mem), "Update Identity")
+    with st.expander("👤 IDENTITY"):
+        new_name = st.text_input("Name", value=st.session_state.user_name)
+        if st.button("SYNC"):
+            update_file("memory.json", json.dumps({"user_name": new_name}), "Update Identity")
+            st.session_state.user_name = new_name
             st.rerun()
 
-# Main Dashboard
-st.title(f"Welcome to the Nexus, {user}")
-st.write("### ⚡ Command & Evolution Center")
+st.title(f"Greetings, {st.session_state.user_name}")
 
-# Create a clean layout
-col1, col2 = st.columns([2, 1])
+# COMMAND AREA
+task = st.text_area("Next Phase Command:", placeholder="e.g. Add a system status light...")
 
-with col1:
-    task = st.text_area("What is your next command for the system?", 
-                        placeholder="Example: Add a live world clock and a weather widget...",
-                        height=180)
-    
-    if st.button("🚀 INITIATE SYSTEM EVOLUTION"):
-        if task:
-            with st.status("🧬 Synthesis in progress...", expanded=True):
-                st.write("Researching 2026 patterns...")
-                res = tavily.search(query=f"Python Streamlit UI code for {task}", search_depth="advanced")
-                
-                st.write("Rewriting System Code...")
-                prompt = f"Rewrite the whole app.py. Keep GitHub and Memory logic. Add: {task}. Use {res}. Output RAW Python code only."
-                response = client.models.generate_content(model="gemini-2.0-flash", contents=prompt)
-                st.session_state.draft = response.text
-        else:
-            st.warning("Please enter a command.")
+if st.button("🚀 INITIATE EVOLUTION"):
+    try:
+        with st.status("🧬 Thinking...", expanded=True):
+            res = tavily.search(query=f"Streamlit code for {task}", search_depth="basic")
+            prompt = f"Rewrite app.py. Keep all existing GitHub/Memory logic. Add {task}. Use {res}. RAW CODE ONLY."
+            # We use gemini-1.5-flash here for maximum stability during tests
+            response = client.models.generate_content(model="gemini-1.5-flash", contents=prompt)
+            st.session_state.draft = response.text
+            st.rerun()
+    except Exception as e:
+        st.error(f"Brain Glitch: {e}. Please try a simpler command.")
 
-with col2:
-    st.write("### 📊 System Intel")
-    st.metric("Version", "4.0.26")
-    st.metric("Latency", "Optimal")
-    if "draft" in st.session_state:
-        st.success("✨ New DNA Sequence Prepared")
-
-# Deployment Logic
 if "draft" in st.session_state:
-    st.divider()
-    st.subheader("🧬 Proposed Evolution DNA")
+    st.subheader("🧬 Proposed DNA")
     st.code(st.session_state.draft, language="python")
-    
-    c1, c2 = st.columns(2)
-    with c1:
-        if st.button("✅ PERMIT OVERWRITE"):
-            update_file("app.py", st.session_state.draft, "🧬 NEXUS EVOLUTION")
-            st.balloons()
-            st.toast("Evolving... Check back in 60 seconds!")
-    with c2:
-        if st.button("❌ DISCARD"):
-            del st.session_state.draft
-            st.rerun()
+    if st.button("✅ PERMIT"):
+        update_file("app.py", st.session_state.draft, "🧬 EVOLUTION")
+        st.balloons()
