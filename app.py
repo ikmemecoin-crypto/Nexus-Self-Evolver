@@ -7,7 +7,7 @@ from PIL import Image
 from contextlib import redirect_stdout
 import io
 
-# --- 1. UI SETUP ---
+# --- 1. CLEAN NEXUS UI ---
 st.set_page_config(page_title="Nexus Omni", layout="wide")
 st.markdown("""
     <style>
@@ -20,28 +20,31 @@ st.markdown("""
         -webkit-background-clip: text; -webkit-text-fill-color: transparent;
         margin-bottom: 2rem;
     }
+    /* Fixed Sidebar styling to remove glitches */
+    [data-testid="stSidebar"] { background-color: #131314 !important; border-right: 1px solid #333; }
+    [data-testid="stSidebarNav"] { display: none; } /* Removes default nav glitches */
     div[data-testid="stChatMessage"] {
         background-color: #2b2d2f !important; border-radius: 20px !important;
         padding: 15px !important; border: 1px solid rgba(255,255,255,0.05) !important;
     }
     .stChatInputContainer { position: fixed; bottom: 35px; border-radius: 32px !important; z-index: 1000; }
-    [data-testid="stSidebar"] { background-color: #131314 !important; border-right: 1px solid #333; }
     #MainMenu, footer, header {visibility: hidden;}
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. AUTH & REPO ---
+# --- 2. AUTH ---
 try:
     client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
     g = Github(st.secrets["GH_TOKEN"])
     repo = g.get_repo(st.secrets["GH_REPO"])
 except:
-    st.error("📡 Neural Core Offline. Check Secrets.")
+    st.error("📡 Neural Core Offline.")
     st.stop()
 
-# --- 3. SIDEBAR (LOGIC FIRST) ---
+# --- 3. SIDEBAR (LOGIC CLEANUP) ---
 with st.sidebar:
-    st.markdown("<h2 style='color:#e3e3e3;'>NEXUS OMNI</h2>", unsafe_allow_html=True)
+    # Removed any icon codes that could cause "keyboard_double_" text
+    st.markdown("<h2 style='color:#e3e3e3; margin-top:-30px;'>NEXUS OMNI</h2>", unsafe_allow_html=True)
     
     # Cooldown Logic
     if 'cooldown_end' in st.session_state and time.time() < st.session_state.cooldown_end:
@@ -50,7 +53,6 @@ with st.sidebar:
         time.sleep(1)
         st.rerun()
 
-    # Define usage_mode HERE so it exists for the rest of the script
     usage_mode = st.radio("Operation Mode", ["Standard Chat", "Live Web Search", "Python Lab"])
     
     st.markdown("---")
@@ -73,22 +75,22 @@ with st.sidebar:
 # --- 4. MAIN INTERFACE ---
 st.markdown(f'<h1 class="nexus-header">Greetings, Adil</h1>', unsafe_allow_html=True)
 
-# PYTHON LAB (Now positioned after usage_mode is defined)
+# PYTHON LAB 
 if usage_mode == "Python Lab":
-    st.info("🧪 **Python Lab**: Run local scripts. Click 'Run' to execute.")
+    st.info("🧪 **Python Lab**: Click 'Run' to execute code locally.")
     with st.form("lab_form"):
-        code_input = st.text_area("Write Python Code here...", value='print("Nexus is ready")', height=200)
+        code_input = st.text_area("Code Editor", value='print("Nexus is ready")', height=200)
         run_submitted = st.form_submit_button("▶️ Run Script")
 
     if run_submitted:
         st.markdown("### 🖥️ Console Output")
         with st.container():
-            st.markdown('<div style="background-color: #000; color: #0f0; padding: 15px; border-radius: 10px; font-family: monospace;">', unsafe_allow_html=True)
+            st.markdown('<div style="background-color: #000; color: #0f0; padding: 15px; border-radius: 10px; font-family: monospace; min-height: 50px;">', unsafe_allow_html=True)
             try:
                 output_buffer = io.StringIO()
                 with redirect_stdout(output_buffer):
                     exec(code_input)
-                st.text(output_buffer.getvalue() or "Success: No output.")
+                st.text(output_buffer.getvalue() or "Success: Process completed.")
             except Exception as e:
                 st.error(f"Error: {e}")
             st.markdown('</div>', unsafe_allow_html=True)
@@ -105,14 +107,14 @@ for message in st.session_state.messages:
 prompt = st.chat_input("Command Nexus...")
 
 if audio_file or uploaded_img or prompt:
-    display_text = prompt if prompt else "🧬 [Processing Multimodal Input]"
+    display_text = prompt if prompt else "🧬 [Input Received]"
     st.session_state.messages.append({"role": "user", "content": display_text})
     with st.chat_message("user"):
         st.markdown(display_text)
 
     with st.chat_message("assistant", avatar="✨"):
         try:
-            contents = [f"User: Adil. Project: {project_folder}. History: {st.session_state.memory_data.get('chat_summary','')}"]
+            contents = [f"User: Adil. Project: {project_folder}. Context: {st.session_state.memory_data.get('chat_summary','')}"]
             if uploaded_img: contents.append(Image.open(uploaded_img))
             if audio_file: contents.append({"inline_data": {"data": audio_file.read(), "mime_type": "audio/wav"}})
             if prompt: contents.append(prompt)
@@ -128,6 +130,6 @@ if audio_file or uploaded_img or prompt:
         except Exception as e:
             if "429" in str(e):
                 st.session_state.cooldown_end = time.time() + 30
-                st.warning("⚡ API Limit Reached. Cooldown Started.")
+                st.warning("⚡ API limit reached. Cooldown started.")
             else:
                 st.error(f"Neural Error: {e}")
