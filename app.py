@@ -21,7 +21,7 @@ if st.button("Execute Command"):
 
     with st.spinner("NEXUS is processing knowledge..."):
         prompt = f"Using this internet data: {context}. Answer the user request: {query}. Also, suggest one way you could update your own code to better handle this type of task in the future."
-        response = client.models.generate_content(model="gemini-2.0-flash", contents=prompt)
+        response = client.models.generate_content(model="gemini-3-flash-preview", contents=prompt)
         st.subheader("Knowledge Synthesis")
         st.write(response.text)
         st.info("💡 Self-Evolution Suggestion logged. Waiting for your permission to update code.")
