@@ -7,85 +7,86 @@ from PIL import Image
 from contextlib import redirect_stdout
 import io
 
-# --- 1. GOOGLE MATERIAL DESIGN UI ---
+# --- 1. COMPACT WHITE UI (NO SCROLL) ---
 st.set_page_config(page_title="Nexus Omni", layout="wide")
 
 st.markdown("""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500&family=Roboto:wght@300;400;500&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500&display=swap');
     
     html, body, [class*="st-"] { 
-        font-family: 'Google Sans', 'Roboto', sans-serif; 
-        background-color: #131314; 
-        color: #e3e3e3; 
+        font-family: 'Google Sans', sans-serif; 
+        background-color: #FFFFFF; 
+        color: #1f1f1f; 
     }
     
-    .main { background-color: #131314; }
+    /* Force compact layout */
+    .block-container {
+        padding-top: 1.5rem !important;
+        padding-bottom: 0rem !important;
+    }
 
-    /* Centered Google Logo Style Header */
     .google-header {
-        font-family: 'Google Sans', sans-serif;
-        font-size: 3.5rem;
+        font-size: 2.5rem;
         font-weight: 500;
         text-align: center;
         background: linear-gradient(90deg, #4285F4 0%, #34A853 30%, #FBBC05 60%, #EA4335 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
-        margin-top: 5vh;
-        margin-bottom: 0.5rem;
+        margin-bottom: 0.2rem;
     }
 
     .subtitle {
         text-align: center;
-        color: #8e918f;
-        font-size: 1.2rem;
-        margin-bottom: 3rem;
+        color: #5f6368;
+        font-size: 1rem;
+        margin-bottom: 1rem;
     }
     
-    /* Material Sidebar */
+    /* Clean Sidebar - No Dividers */
     [data-testid="stSidebar"] { 
-        background-color: #1e1f20 !important; 
-        border-right: none;
+        background-color: #f8f9fa !important; 
+        border-right: 1px solid #e0e0e0 !important;
     }
     
-    /* Chat Bubbles */
-    div[data-testid="stChatMessage"] {
-        background-color: transparent !important;
-        border: none !important;
-        margin-bottom: 24px !important;
+    /* Chat Container Height for 1-Page fit */
+    .stChatMessage {
+        margin-bottom: 4px !important;
+        padding: 4px !important;
     }
 
-    /* Floating Search Pill (Google Style) */
+    /* Seamless Input Bar */
     .stChatInputContainer { 
-        background-color: #1e1f20 !important;
-        border: 1px solid #3c4043 !important;
-        border-radius: 32px !important;
-        padding: 5px 15px !important;
+        background-color: #FFFFFF !important;
+        border: 1px solid #dadce0 !important;
+        border-radius: 24px !important;
+        margin-bottom: 5px !important;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1) !important;
     }
 
     #MainMenu, footer, header { visibility: hidden; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. AUTH & REPO ---
+# --- 2. CORE AUTH ---
 try:
     client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
     g = Github(st.secrets["GH_TOKEN"])
     repo = g.get_repo(st.secrets["GH_REPO"])
 except Exception as e:
-    st.error("📡 Connection Offline: Check Secrets.")
+    st.error("📡 Neural Core Offline.")
     st.stop()
 
-# --- 3. SIDEBAR (CONTROLS) ---
+# --- 3. SEAMLESS SIDEBAR (NO WALLS) ---
 with st.sidebar:
-    st.markdown("<h3 style='color:#e3e3e3; padding-bottom:20px;'>Nexus Omni</h3>", unsafe_allow_html=True)
+    st.markdown("<h4 style='color:#4285F4; margin-top:0;'>Nexus Omni</h4>", unsafe_allow_html=True)
     
-    usage_mode = st.radio("Mode", ["Standard Chat", "Live Web Search", "Python Lab"])
+    usage_mode = st.radio("Mode", ["Standard Chat", "Live Web Search", "Python Lab"], label_visibility="collapsed")
     
-    st.markdown("---")
-    project_folder = st.selectbox("Project", ["General", "Coding", "Personal", "Research"])
+    st.markdown("<p style='color:#5f6368; font-size:0.75rem; margin-top:10px; margin-bottom:2px;'>PROJECT SELECTION</p>", unsafe_allow_html=True)
+    project_folder = st.selectbox("Project", ["General", "Coding", "Personal", "Research"], label_visibility="collapsed")
     
-    # Persistent Memory
+    # Memory Sync
     memory_filename = f"memory_{project_folder.lower()}.json"
     if 'memory_data' not in st.session_state or st.session_state.get('last_folder') != project_folder:
         try:
@@ -95,49 +96,35 @@ with st.sidebar:
             st.session_state.memory_data = {"user_name": "Adil", "chat_summary": ""}
         st.session_state.last_folder = project_folder
 
-    uploaded_img = st.file_uploader("Upload Image", type=["jpg", "png", "jpeg"])
-    audio_file = st.audio_input("Voice Input")
+    # Removed '---' divider to allow seamless flow
+    uploaded_img = st.file_uploader("Image", type=["jpg", "png", "jpeg"], label_visibility="collapsed")
+    audio_file = st.audio_input("Audio", label_visibility="collapsed")
 
 # --- 4. MAIN INTERFACE ---
 st.markdown('<div class="google-header">Nexus Omni</div>', unsafe_allow_html=True)
 st.markdown('<div class="subtitle">How can I help you today, Adil?</div>', unsafe_allow_html=True)
 
-# Feature: Python Lab
-if usage_mode == "Python Lab":
-    st.markdown("### 🧪 Python Lab")
-    with st.form("lab_form"):
-        code_input = st.text_area("Write Script...", value='print("Hello Adil")', height=150)
-        run_submitted = st.form_submit_button("Run Code")
-    if run_submitted:
-        output_buffer = io.StringIO()
-        try:
-            with redirect_stdout(output_buffer):
-                exec(code_input)
-            st.code(output_buffer.getvalue() or "Success.")
-        except Exception as e:
-            st.error(f"Error: {e}")
-    st.stop()
-
-# Chat System
+# Chat History
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Display centered messages
-col1, col2, col3 = st.columns([1, 4, 1])
-with col2:
-    for message in st.session_state.messages:
-        with st.chat_message(message["role"], avatar="✨" if message["role"] == "assistant" else None):
-            st.markdown(message["content"])
+# Centered Chat Flow with vertical constraint
+col1, col_main, col2 = st.columns([1, 5, 1])
+with col_main:
+    chat_box = st.container(height=450, border=False) # Tight height for 1-page fit
+    with chat_box:
+        for message in st.session_state.messages:
+            with st.chat_message(message["role"], avatar="✨" if message["role"] == "assistant" else None):
+                st.markdown(message["content"])
 
     prompt = st.chat_input("Ask Nexus...")
 
+    # Logic Processing
     if audio_file or uploaded_img or prompt:
-        display_text = prompt if prompt else "🧬 Input Received"
-        st.session_state.messages.append({"role": "user", "content": display_text})
-        
+        st.session_state.messages.append({"role": "user", "content": prompt if prompt else "🧬 Input Received"})
         with st.chat_message("assistant", avatar="✨"):
             try:
-                contents = [f"Context: {st.session_state.memory_data.get('chat_summary','')}"]
+                contents = [f"Context: {st.session_state.memory_data.get('chat_summary','')[:300]}"]
                 if uploaded_img: contents.append(Image.open(uploaded_img))
                 if audio_file: contents.append({"inline_data": {"data": audio_file.read(), "mime_type": "audio/wav"}})
                 if prompt: contents.append(prompt)
@@ -146,9 +133,10 @@ with col2:
                 
                 def stream_nexus():
                     for chunk in client.models.generate_content_stream(model="gemini-2.0-flash", contents=contents, config={'tools': tools}):
-                        yield chunk.text
+                        if chunk.text: yield chunk.text
 
                 full_res = st.write_stream(stream_nexus())
                 st.session_state.messages.append({"role": "assistant", "content": full_res})
+                st.rerun()
             except Exception as e:
-                st.error(f"Neural Error: {e}")
+                st.error(f"Error: {e}")
