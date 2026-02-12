@@ -1,121 +1,140 @@
 import streamlit as st
 from google import genai
 import json
-import time
 from github import Github
+from PIL import Image
+import io
 
-# --- 1. PREMIUM GREY UI ---
-st.set_page_config(page_title="Nexus OS", layout="wide")
+# --- 1. CORE ENGINE STABILIZATION ---
+st.set_page_config(page_title="Nexus Omni", layout="wide", initial_sidebar_state="expanded")
 
+# Ultra-Clean Material Design (No "Walls", Single Page Fit)
 st.markdown("""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&display=swap');
-    html, body, [class*="st-"] { font-family: 'Outfit', sans-serif; background-color: #1e1f20; color: #e3e3e3; }
-    .main { background-color: #1e1f20; }
-    .nexus-header {
-        font-size: 2.8rem; font-weight: 500;
-        background: linear-gradient(90deg, #4285f4, #9b72cb, #d96570);
-        -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-        margin-bottom: 2rem;
+    @import url('https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500&display=swap');
+    
+    html, body, [class*="st-"] { 
+        font-family: 'Google Sans', sans-serif; 
+        background-color: #131314; 
+        color: #e3e3e3; 
     }
-    div[data-testid="stChatMessage"] {
-        background-color: #2b2d2f !important; border-radius: 20px !important;
-        padding: 15px !important; border: 1px solid rgba(255,255,255,0.05) !important;
+
+    /* Remove vertical scrolling by tightening containers */
+    .block-container { padding: 1rem 3rem !important; }
+    
+    .google-header {
+        font-size: 2.5rem;
+        font-weight: 500;
+        text-align: center;
+        background: linear-gradient(90deg, #4285F4 0%, #34A853 30%, #FBBC05 60%, #EA4335 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin-bottom: 0px;
     }
-    .stChatInputContainer { position: fixed; bottom: 30px; border-radius: 30px !important; z-index: 1000; }
-    [data-testid="stSidebar"] { background-color: #131314 !important; border-right: 1px solid #333; }
-    #MainMenu, footer, header {visibility: hidden;}
+
+    .subtitle {
+        text-align: center;
+        color: #8e918f;
+        font-size: 0.9rem;
+        margin-bottom: 10px;
+    }
+
+    /* Seamless Sidebar */
+    [data-testid="stSidebar"] { background-color: #1e1f20 !important; border: none; }
+    
+    /* Search Bar Design */
+    .stChatInputContainer { 
+        background-color: #1e1f20 !important;
+        border: 1px solid #3c4043 !important;
+        border-radius: 24px !important;
+    }
+
+    #MainMenu, footer, header { visibility: hidden; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. AUTH ---
-try:
-    client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
-    g = Github(st.secrets["GH_TOKEN"])
-    repo = g.get_repo(st.secrets["GH_REPO"])
-except:
-    st.error("📡 Nexus Core Offline.")
-    st.stop()
-
-# --- 3. MEMORY ---
-if 'memory_data' not in st.session_state:
+# --- 2. AUTHENTICATION ---
+@st.cache_resource
+def setup_nexus():
     try:
-        mem_file = repo.get_contents("memory.json")
-        st.session_state.memory_data = json.loads(mem_file.decoded_content.decode())
-    except:
-        st.session_state.memory_data = {"user_name": "Adil", "chat_summary": ""}
-    st.session_state.user_name = st.session_state.memory_data.get("user_name", "Adil")
+        c = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
+        gh = Github(st.secrets["GH_TOKEN"])
+        r = gh.get_repo(st.secrets["GH_REPO"])
+        return c, r
+    except Exception as e:
+        st.error(f"Nexus Core Offline: {e}")
+        return None, None
 
-# --- 4. SIDEBAR ---
+client, repo = setup_nexus()
+
+# --- 3. THE CONTROL PANEL (SIDEBAR) ---
 with st.sidebar:
-    st.markdown("<h2 style='color:#e3e3e3; font-weight:400;'>NEXUS OS</h2>", unsafe_allow_html=True)
-    model_choice = st.selectbox("Neural Engine", ["gemini-2.0-flash", "gemini-1.5-pro"])
+    st.markdown("<h2 style='color:white;'>Nexus</h2>", unsafe_allow_html=True)
     
-    if st.button("+ Reset Session", use_container_width=True):
-        st.session_state.messages = []
-        st.rerun()
+    mode = st.selectbox("Engine Mode", ["Chat", "Web Search", "Python Lab"])
+    project = st.selectbox("Vault", ["General", "Coding", "Personal", "Research"])
     
-    st.markdown("---")
-    st.write("🎙️ **Voice Neural Link**")
-    # Using a clearer prompt for the audio input
-    audio_value = st.audio_input("Speak to the Council")
-    
-    if st.button("💾 Archive DNA", use_container_width=True):
-        history = "\n".join([f"{m['role']}: {m['content']}" for m in st.session_state.get('messages', [])])
-        st.session_state.memory_data['chat_summary'] = history[-800:]
-        content = json.dumps(st.session_state.memory_data)
-        f = repo.get_contents("memory.json")
-        repo.update_file(f.path, "Neural Sync", content, f.sha)
-        st.toast("Memory Synced")
-
-# --- 5. MAIN INTERFACE ---
-st.markdown(f'<h1 class="nexus-header">Greetings, {st.session_state.user_name}</h1>', unsafe_allow_html=True)
-
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-
-for message in st.session_state.messages:
-    with st.chat_message(message["role"], avatar="✨" if message["role"] == "assistant" else None):
-        st.markdown(message["content"])
-
-# --- 6. VOICE & TEXT PROCESSING ---
-prompt = st.chat_input("Ask Nexus anything...")
-
-# Logic to prioritize Voice if recorded
-if audio_value:
-    prompt = "🎤 [Voice Message Received]"
-    audio_bytes = audio_value.read()
-
-if prompt:
-    # Add User Message to History
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.markdown(prompt)
-
-    # Process AI Response with Streaming
-    with st.chat_message("assistant", avatar="✨"):
+    # Memory Loader
+    mem_file = f"memory_{project.lower()}.json"
+    if 'vault_data' not in st.session_state or st.session_state.get('active_project') != project:
         try:
-            # Prepare Multi-modal Payload
-            context_prompt = f"User: {st.session_state.user_name}. Summary: {st.session_state.memory_data['chat_summary']}"
-            
-            contents = [context_prompt]
-            if audio_value:
-                contents.append({"inline_data": {"data": audio_bytes, "mime_type": "audio/wav"}})
-                contents.append("Transcribe this audio and reply to the user.")
-            else:
-                contents.append(st.session_state.messages[-1]["content"])
+            raw = repo.get_contents(mem_file)
+            st.session_state.vault_data = json.loads(raw.decoded_content.decode())
+        except:
+            st.session_state.vault_data = {"user": "Adil", "summary": ""}
+        st.session_state.active_project = project
 
-            # STREAMING ENGINE
-            def stream_nexus():
-                # Correcting the streaming call for the Client SDK
-                for chunk in client.models.generate_content_stream(model=model_choice, contents=contents):
-                    yield chunk.text
+    st.markdown("---")
+    img_in = st.file_uploader("Upload Visuals", type=["png", "jpg", "jpeg"], label_visibility="collapsed")
+    aud_in = st.audio_input("Voice Command")
 
-            full_response = st.write_stream(stream_nexus)
-            st.session_state.messages.append({"role": "assistant", "content": full_response})
-            
-        except Exception as e:
-            if "429" in str(e):
-                st.warning("⚡ API Cooling Down. Wait 30 seconds.")
-            else:
-                st.error(f"Neural Glitch: {e}")
+# --- 4. THE INTERFACE ---
+st.markdown('<div class="google-header">Nexus Omni</div>', unsafe_allow_html=True)
+st.markdown(f'<div class="subtitle">Welcome, Adil. Project: {project}</div>', unsafe_allow_html=True)
+
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = []
+
+# Main Column for Chat
+c1, c2, c3 = st.columns([0.5, 5, 0.5])
+with c2:
+    # Set a fixed height for chat to force everything onto 1 page
+    chat_box = st.container(height=450, border=False)
+    
+    with chat_box:
+        for m in st.session_state.chat_history:
+            with st.chat_message(m["role"], avatar="✨" if m["role"] == "assistant" else None):
+                st.markdown(m["content"])
+
+    # Input System
+    query = st.chat_input("Ask anything...")
+
+    if query or img_in or aud_in:
+        # User side
+        user_text = query if query else "Processing Multimedia..."
+        st.session_state.chat_history.append({"role": "user", "content": user_text})
+        
+        with st.chat_message("assistant", avatar="✨"):
+            try:
+                # Payload Preparation
+                payload = [f"Context: {st.session_state.vault_data.get('summary', '')[:300]}"]
+                if img_in: payload.append(Image.open(img_in))
+                if aud_in: payload.append({"inline_data": {"data": aud_in.read(), "mime_type": "audio/wav"}})
+                if query: payload.append(query)
+                
+                tool_config = [{"google_search": {}}] if mode == "Web Search" else None
+                
+                def generate():
+                    for chunk in client.models.generate_content_stream(
+                        model="gemini-2.0-flash", 
+                        contents=payload, 
+                        config={'tools': tool_config}
+                    ):
+                        if chunk.text: yield chunk.text
+
+                full_reply = st.write_stream(generate())
+                st.session_state.chat_history.append({"role": "assistant", "content": full_reply})
+                st.rerun()
+                
+            except Exception as e:
+                st.error(f"Neural Error: {e}")
