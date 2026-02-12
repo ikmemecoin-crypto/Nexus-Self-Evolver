@@ -20,7 +20,6 @@ st.markdown("""
         color: #e3e3e3; 
     }
     
-    /* Fix for hidden input: ensures content doesn't overflow */
     .block-container { padding: 1rem 2rem !important; }
 
     .google-header {
@@ -31,7 +30,7 @@ st.markdown("""
         background: linear-gradient(90deg, #4285F4 0%, #34A853 30%, #FBBC05 60%, #EA4335 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
-        margin-bottom: 0px;
+        margin-bottom: 5px;
     }
 
     .subtitle {
@@ -41,16 +40,12 @@ st.markdown("""
         margin-bottom: 20px;
     }
     
-    [data-testid="stSidebar"] { background-color: #1e1f20 !important; }
+    [data-testid="stSidebar"] { background-color: #1e1f20 !important; border-right: none; }
     
-    /* Fix for Search Bar Visibility */
     .stChatInputContainer { 
         background-color: #1e1f20 !important;
         border: 1px solid #3c4043 !important;
         border-radius: 28px !important;
-        position: fixed;
-        bottom: 30px;
-        z-index: 1000;
     }
 
     #MainMenu, footer, header { visibility: hidden; }
@@ -66,7 +61,7 @@ def init_connections():
         r = gh.get_repo(st.secrets["GH_REPO"])
         return c, r
     except Exception as e:
-        st.error(f"Auth Error: {e}")
+        st.error(f"Connection Failed: {e}")
         return None, None
 
 client, repo = init_connections()
@@ -80,7 +75,6 @@ with st.sidebar:
     st.markdown("<p style='color:#8e918f; font-size:0.8rem; margin-top:15px;'>CONTEXT VAULT</p>", unsafe_allow_html=True)
     project_folder = st.selectbox("Project", ["General", "Coding", "Personal", "Research"], label_visibility="collapsed")
     
-    # Sync Memory
     memory_filename = f"memory_{project_folder.lower()}.json"
     if 'memory_data' not in st.session_state or st.session_state.get('last_folder') != project_folder:
         try:
@@ -90,14 +84,13 @@ with st.sidebar:
             st.session_state.memory_data = {"user_name": "Adil", "chat_summary": ""}
         st.session_state.last_folder = project_folder
 
-    uploaded_img = st.file_uploader("Image", type=["jpg", "png", "jpeg"], label_visibility="collapsed")
+    uploaded_img = st.file_uploader("Upload Image", type=["jpg", "png", "jpeg"], label_visibility="collapsed")
     audio_file = st.audio_input("Voice Input")
 
 # --- 4. MAIN INTERFACE ---
 st.markdown('<div class="google-header">Nexus Omni</div>', unsafe_allow_html=True)
-st.markdown(f'<div class="subtitle">Systems Optimal. Project: {project_folder}</div>', unsafe_allow_html=True)
+st.markdown(f'<div class="subtitle">Project: {project_folder} | Status: Systems Optimal</div>', unsafe_allow_html=True)
 
-# Feature: Python Lab
 if usage_mode == "Python Lab":
     with st.form("lab_sandbox"):
         code_input = st.text_area("Python Console", value='print("Perfect Execution")', height=150)
@@ -106,39 +99,35 @@ if usage_mode == "Python Lab":
             try:
                 with redirect_stdout(buf):
                     exec(code_input)
-                st.code(buf.getvalue() or "Executed Successfully.")
+                st.code(buf.getvalue() or "Success.")
             except Exception as e:
-                st.error(f"Error: {e}")
+                st.error(f"Execution Error: {e}")
     st.stop()
 
 # --- 5. CHAT ENGINE ---
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Main Column Layout
-col_left, col_mid, col_right = st.columns([0.5, 5, 0.5])
-
+col_l, col_mid, col_r = st.columns([0.5, 5, 0.5])
 with col_mid:
-    # Fixed Chat Area
-    chat_container = st.container(height=450, border=False)
+    chat_container = st.container(height=420, border=False)
     with chat_container:
         for m in st.session_state.messages:
             with st.chat_message(m["role"], avatar="✨" if m["role"] == "assistant" else None):
                 st.markdown(m["content"])
 
-    # Input Logic
     prompt = st.chat_input("Command Nexus...")
 
-    # Logic for Prompt OR Audio OR Image
     if prompt or uploaded_img or audio_file:
-        # Prevent recursive loops
-        input_text = prompt if prompt else "🧬 Multimedia Task"
-        st.session_state.messages.append({"role": "user", "content": input_text})
+        user_input = prompt if prompt else "🧬 Multimedia Task"
+        st.session_state.messages.append({"role": "user", "content": user_input})
         
         with st.chat_message("assistant", avatar="✨"):
             try:
-                # Prepare Multimodal contents
-                contents = [f"Summary: {st.session_state.memory_data.get('chat_summary','')[:300]}"]
+                # Add a tiny delay to help with quota spacing
+                time.sleep(1)
+                
+                contents = [f"Context: {st.session_state.memory_data.get('chat_summary','')[:200]}"]
                 if uploaded_img: contents.append(Image.open(uploaded_img))
                 if audio_file: contents.append({"inline_data": {"data": audio_file.read(), "mime_type": "audio/wav"}})
                 if prompt: contents.append(prompt)
@@ -153,4 +142,7 @@ with col_mid:
                 st.session_state.messages.append({"role": "assistant", "content": response})
                 st.rerun()
             except Exception as e:
-                st.error(f"Core Error: {e}")
+                if "429" in str(e):
+                    st.error("⚠️ Quota Exceeded. Please wait 30 seconds for the API to reset.")
+                else:
+                    st.error(f"System Error: {e}")
