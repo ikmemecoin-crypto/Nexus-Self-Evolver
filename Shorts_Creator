@@ -1,0 +1,31 @@
+import React, { useState, useEffect } from 'react';
+import { View, Button, Camera } from 'react-native';
+
+const VideoRecording = () => {
+  const [camera, setCamera] = useState(null);
+  const [videoPath, setVideoPath] = useState(null);
+
+  useEffect(() => {
+    const cameraInstance = Camera.getInstance();
+    setCamera(cameraInstance);
+  }, []);
+
+  const startRecording = async () => {
+    const videoPath = await camera.startRecording();
+    setVideoPath(videoPath);
+  };
+
+  const stopRecording = async () => {
+    const videoPath = await camera.stopRecording();
+    setVideoPath(videoPath);
+  };
+
+  return (
+    <View>
+      <Button title="Start Recording" onPress={startRecording} />
+      <Button title="Stop Recording" onPress={stopRecording} />
+    </View>
+  );
+};
+
+export default VideoRecording;
