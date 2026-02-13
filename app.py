@@ -1,105 +1,50 @@
 import streamlit as st
-import json
-from groq import Groq
-from github import Github
+import pandas as pd
 
-# --- 1. CORE SYNC ---
-@st.cache_resource
-def init_nexus():
-    try:
-        g = Groq(api_key=st.secrets["GROQ_API_KEY"])
-        gh = Github(st.secrets["GH_TOKEN"])
-        r = gh.get_repo(st.secrets["GH_REPO"])
-        return g, r
-    except: return None, None
+st.set_page_config(page_title="Pro Real Estate ROI", layout="wide")
+st.title("🏠 Real Estate ROI Architect")
+st.write("Professional-grade investment analysis for property investors.")
 
-client, repo = init_nexus()
-
-# --- 2. 99.9% PIXEL PERFECT CSS ---
-st.set_page_config(page_title="Gemini", layout="wide", initial_sidebar_state="collapsed")
-
-st.markdown("""
-    <style>
-    @import url('https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500&display=swap');
-    html, body, [class*="st-"] { font-family: 'Google Sans', sans-serif; background-color: #131314 !important; color: #E3E3E3 !important; }
-    header, footer { visibility: hidden; }
+with st.container(border=True):
+    col1, col2 = st.columns(2)
     
-    /* Pill Styling */
-    .stButton > button {
-        background-color: #1E1F20 !important;
-        color: #E3E3E3 !important;
-        border: 1px solid #3C4043 !important;
-        border-radius: 20px !important;
-        padding: 10px 20px !important;
-        transition: 0.3s;
-    }
-    .stButton > button:hover { border-color: #8E918F !important; background-color: #28292A !important; }
+    with col1:
+        st.subheader("💰 Investment Details")
+        prop_price = st.number_input("Property Purchase Price ($)", min_value=0, value=250000)
+        closing_costs = st.number_input("Closing Costs ($)", min_value=0, value=5000)
+        repair_costs = st.number_input("Repair/Renovation ($)", min_value=0, value=10000)
+        
+    with col2:
+        st.subheader("📊 Monthly Income/Expense")
+        monthly_rent = st.number_input("Expected Monthly Rent ($)", min_value=0, value=2000)
+        monthly_expenses = st.number_input("Monthly Expenses (Taxes, Insurance, etc) ($)", min_value=0, value=600)
 
-    /* Input Area */
-    div[data-testid="stChatInput"] { background-color: #1E1F20 !important; border-radius: 28px !important; border: 1px solid #3C4043 !important; }
-    
-    .gemini-gradient {
-        font-size: 56px; font-weight: 500;
-        background: linear-gradient(74deg, #4285f4 0%, #9b72cb 15%, #d96570 35%);
-        -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-        margin-top: 5vh;
-    }
-    </style>
-    """, unsafe_allow_html=True)
+# Calculations
+total_investment = prop_price + closing_costs + repair_costs
+annual_income = monthly_rent * 12
+annual_expenses = monthly_expenses * 12
+annual_net_profit = annual_income - annual_expenses
+roi = (annual_net_profit / total_investment) * 100 if total_investment > 0 else 0
 
-# --- 3. THE INTERFACE ---
-if "messages" not in st.session_state: st.session_state.messages = []
+st.divider()
 
-# Top Model Selector (Gemini 3 Style)
-col_sel, col_space = st.columns([2, 8])
-with col_sel:
-    model_version = st.selectbox("Model", ["Gemini 3.0 Pro", "Gemini 1.5 Flash", "Nexus Ultra"], label_visibility="collapsed")
+# Results Dashboard
+c1, c2, c3 = st.columns(3)
+c1.metric("Total Investment", f"${total_investment:,}")
+c2.metric("Annual Net Profit", f"${annual_net_profit:,}")
+c3.metric("ROI (%)", f"{roi:.2f}%")
 
-# Main Screen
-p_input = None
-if not st.session_state.messages:
-    st.markdown('<div class="gemini-gradient">Hi Adil</div>', unsafe_allow_html=True)
-    st.markdown('<div style="font-size: 56px; color: #444746; font-weight: 500; margin-bottom: 40px;">Where should we start?</div>', unsafe_allow_html=True)
-    
-    # Active Suggestion Pills
-    c1, c2, c3, c4 = st.columns(4)
-    if c1.button("🎨 Create image"): p_input = "Generate a professional logo for a new AI startup."
-    if c2.button("💡 Help me learn"): p_input = "Explain how to scale a SaaS business to $2,000/month."
-    if c3.button("📝 Write anything"): p_input = "Write a cold email to a real estate client for my ROI tool."
-    if c4.button("🚀 Boost my day"): p_input = "Give me a high-productivity schedule to hit my monthly goals."
+if roi > 8:
+    st.success("🔥 This is a High-Yield Investment!")
+elif roi > 4:
+    st.info("⚖️ This is a Moderate-Yield Investment.")
+else:
+    st.warning("⚠️ Low-Yield. Exercise caution.")
 
-# Display Chat
-for m in st.session_state.messages:
-    with st.chat_message(m["role"]): st.markdown(m["content"])
-
-# --- 4. HIDDEN ENGINE (SIDEBAR) ---
-with st.sidebar:
-    st.title("🛰️ Nexus Engine")
-    st.success("Target: $2,000 / Current: $0")
-    with st.expander("🛠️ GitHub Auto-Writer"):
-        fn = st.text_input("Filename", "earning_logic.py")
-        code = st.text_area("Source Code", height=200)
-        if st.button("🚀 Deploy"):
-            try:
-                try:
-                    f = repo.get_contents(fn); repo.update_file(fn, "Update", code, f.sha)
-                except: repo.create_file(fn, "Init", code)
-                st.toast("Deployed to Cloud!")
-            except Exception as e: st.error(e)
-
-# --- 5. CHAT LOGIC ---
-query = st.chat_input("Ask Gemini 3") or p_input
-
-if query and client:
-    st.session_state.messages.append({"role": "user", "content": query})
-    with st.chat_message("user"): st.markdown(query)
-    
-    with st.chat_message("assistant"):
-        with st.spinner("Processing..."):
-            try:
-                res = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=[{"role": "user", "content": query}])
-                ans = res.choices[0].message.content
-                st.markdown(ans)
-                st.session_state.messages.append({"role": "assistant", "content": ans})
-                st.rerun()
-            except Exception as e: st.error(e)
+# Data Table for Export
+st.subheader("📋 Detailed Breakdown")
+data = {
+    "Category": ["Total Capital Outlay", "Annual Rental Revenue", "Total Annual Expenses", "Annual Cash Flow"],
+    "Value": [f"${total_investment:,}", f"${annual_income:,}", f"${annual_expenses:,}", f"${annual_net_profit:,}"]
+}
+st.table(pd.DataFrame(data))
