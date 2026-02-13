@@ -39,45 +39,51 @@ st.markdown("""
     }
     [data-testid="stSidebar"] { background-color: #111111 !important; border-right: 1px solid #222 !important; }
     .stChatInputContainer { background-color: #1e1f20 !important; border: 1px solid #3c4043 !important; border-radius: 28px !important; }
-    .stButton > button {
-        background-color: #161616 !important; border: 1px solid #222 !important;
-        color: #aaa !important; border-radius: 12px !important;
-        width: 100% !important; transition: 0.3s !important;
-    }
-    .stButton > button:hover { border-color: #4285F4 !important; color: white !important; background: #1c1c1c !important; }
     #MainMenu, footer, header { visibility: hidden; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. SIDEBAR (BASE STANDARD + VERSION CONTROL) ---
+# --- 3. SIDEBAR (MANAGER CONTROLS) ---
 with st.sidebar:
     st.markdown("<h2 style='color:#4285F4;'>Nexus Vault</h2>", unsafe_allow_html=True)
     project = st.selectbox("Vault Focus", ["General", "Coding", "Research"])
     
     st.markdown("---")
-    tab1, tab2 = st.tabs(["✍️ Writer", "📁 Files"])
+    tab1, tab2 = st.tabs(["✍️ Writer", "📁 Manager"])
     
     with tab1:
-        fname = st.text_input("File Name", "logic.py")
-        code_body = st.text_area("Code to Deploy", height=150)
+        fname = st.text_input("New File Name", "logic.py")
+        code_body = st.text_area("Source Code", height=150)
         if st.button("🚀 Push to GitHub"):
             try:
                 repo.create_file(fname, "Architect Deploy", code_body)
                 st.success("Deployed!")
+                st.rerun()
             except Exception as e: st.error(f"Error: {e}")
 
     with tab2:
-        st.markdown("### Repository Assets")
+        st.markdown("### Assets")
         try:
             contents = repo.get_contents("")
-            for file_content in contents:
-                if st.button(f"📄 {file_content.name}", key=file_content.sha):
-                    st.code(file_content.decoded_content.decode(), language='python')
-        except: st.warning("Could not load file list.")
+            for f_item in contents:
+                if f_item.type == "file":
+                    with st.expander(f"📄 {f_item.name}"):
+                        content = f_item.decoded_content.decode()
+                        # EDIT LOGIC
+                        new_content = st.text_area("Edit Code", value=content, height=100, key=f"edit_{f_item.sha}")
+                        if st.button("💾 Update", key=f"up_{f_item.sha}"):
+                            repo.update_file(f_item.path, "Nexus Edit", new_content, f_item.sha)
+                            st.success("Updated!")
+                            st.rerun()
+                        # DELETE LOGIC
+                        if st.button("🗑️ Delete", key=f"del_{f_item.sha}"):
+                            repo.delete_file(f_item.path, "Nexus Delete", f_item.sha)
+                            st.warning("Deleted!")
+                            st.rerun()
+        except: st.warning("Syncing files...")
 
 # --- 4. FRONT PAGE DISPLAY ---
 st.markdown('<div class="hero-text">Nexus Omni</div>', unsafe_allow_html=True)
-st.markdown("<p style='text-align:center; color:#666; font-size:1.2rem; margin-bottom:20px;'>Architecting the future with precision.</p>", unsafe_allow_html=True)
 
 # Functional Suggested Cards
 c1, c2, c3, c4 = st.columns(4)
@@ -109,21 +115,18 @@ if query and client:
         try:
             mem_path = f"memory_{project.lower()}.json"
             try:
-                f = repo.get_contents(mem_path); vault = json.loads(f.decoded_content.decode()); sha = f.sha
+                f_meta = repo.get_contents(mem_path); vault = json.loads(f_meta.decoded_content.decode()); sha = f_meta.sha
             except:
                 vault, sha = {"history": []}, None
 
-            comp = client.chat.completions.create(
-                model="llama-3.3-70b-versatile", 
-                messages=[{"role": "user", "content": query}]
-            )
+            comp = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=[{"role": "user", "content": query}])
             ans = comp.choices[0].message.content
             st.markdown(ans)
             st.session_state.messages.append({"role": "assistant", "content": ans})
 
             if "history" not in vault: vault["history"] = []
             vault["history"].append(query[:60])
-            if sha: repo.update_file(mem_path, "Learning Sync", json.dumps(vault), sha)
-            else: repo.create_file(mem_path, "Vault Init", json.dumps(vault))
+            if sha: repo.update_file(mem_path, "Sync", json.dumps(vault), sha)
+            else: repo.create_file(mem_path, "Init", json.dumps(vault))
             st.rerun()
         except Exception as e: st.error(f"System Error: {e}")
