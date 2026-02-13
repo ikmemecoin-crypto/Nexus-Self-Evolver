@@ -3,128 +3,124 @@ import json
 from groq import Groq
 from github import Github
 
-# --- 1. CORE SYNC ---
+# --- 1. CORE INTEGRATION ---
 @st.cache_resource
-def init_nexus():
+def connect_system():
     try:
-        g_client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+        g = Groq(api_key=st.secrets["GROQ_API_KEY"])
         gh = Github(st.secrets["GH_TOKEN"])
         r = gh.get_repo(st.secrets["GH_REPO"])
-        return g_client, r
-    except Exception as e:
-        st.error(f"Sync Offline: {e}")
-        return None, None
+        return g, r
+    except: return None, None
 
-client, repo = init_nexus()
+client, repo = connect_system()
 
-# --- 2. THEME & PROFESSIONAL STYLING ---
-st.set_page_config(page_title="Nexus Pro", layout="wide", initial_sidebar_state="collapsed")
+# --- 2. THE 99.9% GEMINI INTERFACE STYLING ---
+st.set_page_config(page_title="Gemini", layout="wide")
 
-# Theme Selection
-if "theme_mode" not in st.session_state:
-    st.session_state.theme_mode = "Dark"
-
-# CSS Variables based on Theme
-if st.session_state.theme_mode == "Dark":
-    bg, card, text, accent = "#0E1117", "#1A1C23", "#E0E0E0", "#58a6ff"
-else:
-    bg, card, text, accent = "#F0F2F6", "#FFFFFF", "#1E1E1E", "#007BFF"
-
-st.markdown(f"""
+st.markdown("""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
-    html, body, [class*="st-"] {{ font-family: 'Inter', sans-serif; background-color: {bg} !important; color: {text} !important; }}
+    @import url('https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500&display=swap');
     
-    /* Professional Card Glassmorphism */
-    div[data-testid="stVerticalBlock"] > div:has(div.stMarkdown) {{
-        background: {card}; border-radius: 16px; padding: 24px;
-        border: 1px solid rgba(128, 128, 128, 0.2);
-        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.1);
-    }}
+    html, body, [class*="st-"] {
+        font-family: 'Google Sans', sans-serif;
+        background-color: #131314 !important;
+        color: #E3E3E3 !important;
+    }
 
-    .main-title {{
-        font-size: 36px; font-weight: 600;
-        background: linear-gradient(120deg, #58a6ff, #bc8cff);
-        -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-    }}
-    
-    [data-testid="stSidebar"] {{ display: none; }}
-    #MainMenu, footer, header {{ visibility: hidden; }}
+    /* Sidebar - Gemini Style */
+    [data-testid="stSidebar"] {
+        background-color: #1E1F20 !important;
+        border-right: none;
+    }
+
+    /* Main Title Gradient */
+    .gemini-gradient {
+        font-size: 44px;
+        font-weight: 500;
+        background: linear-gradient(74deg, #4285f4 0%, #9b72cb 9%, #d96570 20%, #d96570 24%, #9b72cb 35%, #4285f4 44%, #9b72cb 50%, #d96570 56%, #131314 75%, #131314 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin-top: 100px;
+    }
+
+    /* Chat Input Bar */
+    .stChatInputContainer {
+        padding: 0px !important;
+        background: transparent !important;
+    }
+    div[data-testid="stChatInput"] {
+        background-color: #1E1F20 !important;
+        border-radius: 32px !important;
+        border: 1px solid #3C4043 !important;
+        padding: 10px 20px !important;
+    }
+
+    /* Message Bubbles */
+    [data-testid="stChatMessage"] {
+        background-color: transparent !important;
+        border: none !important;
+    }
+
+    /* Nexus Control Card (Hidden in Sidebar) */
+    .nexus-card {
+        background: #28292A;
+        border-radius: 12px;
+        padding: 15px;
+        margin-bottom: 10px;
+        border: 1px solid #3C4043;
+    }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. PROFESSIONAL HEADER ---
-c_head1, c_head2 = st.columns([8, 2])
-with c_head1:
-    st.markdown('<div class="main-title">Nexus Omni <span style="font-size:14px; color:gray;">v2.1 Pro</span></div>', unsafe_allow_html=True)
-with c_head2:
-    st.session_state.theme_mode = st.selectbox("Appearance", ["Dark", "Light"], label_visibility="collapsed")
+# --- 3. SIDEBAR (THE HIDDEN NEXUS ENGINE) ---
+with st.sidebar:
+    st.markdown("### 🛰️ Nexus Control")
+    with st.expander("✍️ Auto-Writer"):
+        fn = st.text_input("Filename", "main.py")
+        src = st.text_area("Source Code", height=200)
+        if st.button("🚀 Deploy to GitHub"):
+            try:
+                try: 
+                    old = repo.get_contents(fn)
+                    repo.update_file(fn, "Gemini Sync", src, old.sha)
+                except: repo.create_file(fn, "Gemini Init", src)
+                st.toast("Production Sync Complete!")
+            except Exception as e: st.error(e)
 
-# --- 4. THE CONTROL CENTER ---
-col_writer, col_chat = st.columns([4, 6], gap="large")
-
-with col_writer:
-    st.subheader("✍️ Code Architect")
-    with st.container():
-        fname = st.text_input("Filename", value="new_logic.py", help="Name your file for GitHub")
-        code_body = st.text_area("Source Code", height=300, placeholder="# Enter your logic here...")
-        if st.button("🚀 Push to Production", use_container_width=True):
-            with st.spinner("Syncing with Vault..."):
-                try:
-                    # Check if exists to avoid 422 error
-                    try:
-                        f = repo.get_contents(fname)
-                        repo.update_file(fname, "Architect Update", code_body, f.sha)
-                    except:
-                        repo.create_file(fname, "Architect Deploy", code_body)
-                    st.toast("Deployment Successful!", icon='✅')
-                    st.rerun()
-                except Exception as e: st.error(e)
-
-    st.markdown("---")
-    st.subheader("📁 Repository Vault")
-    with st.container():
+    with st.expander("📁 File Manager"):
         try:
-            files = repo.get_contents("")
-            for f in files:
+            for f in repo.get_contents(""):
                 if f.type == "file":
-                    with st.expander(f"📄 {f.name}"):
-                        st.code(f.decoded_content.decode()[:150] + "...", language='python')
-                        if st.button("Delete", key=f"del_{f.sha}"):
-                            repo.delete_file(f.path, "Remove", f.sha)
-                            st.rerun()
-        except: st.info("Scanning...")
+                    st.caption(f"📄 {f.name}")
+        except: pass
 
-with col_chat:
-    st.subheader("💬 Nexus Intelligent Chat")
-    chat_box = st.container(height=580, border=True)
-    
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
-
+# --- 4. MAIN INTERFACE ---
+if "messages" not in st.session_state or len(st.session_state.messages) == 0:
+    st.markdown('<div class="gemini-gradient">Hello, Adil</div>', unsafe_allow_html=True)
+    st.markdown('<div style="font-size: 44px; color: #444746; font-weight: 500;">How can I help you today?</div>', unsafe_allow_html=True)
+else:
     for m in st.session_state.messages:
-        with chat_box.chat_message(m["role"]):
+        with st.chat_message(m["role"]):
             st.markdown(m["content"])
 
-    # PRO SUGGESTIONS
-    s1, s2, s3 = st.columns(3)
-    p_cmd = None
-    if s1.button("🔍 Audit Code"): p_cmd = "Review my latest GitHub file for security vulnerabilities."
-    if s2.button("📐 UI UX"): p_cmd = "Suggest 3 ways to make this app look even more professional."
-    if s3.button("🧠 Sync Memory"): p_cmd = "Read memory_general.json and summarize our progress."
-
-    query = st.chat_input("Command the Nexus...") or p_cmd
+# --- 5. CHAT LOGIC ---
+query = st.chat_input("Enter a prompt here")
 
 if query and client:
     st.session_state.messages.append({"role": "user", "content": query})
-    with chat_box.chat_message("user"): st.markdown(query)
-    
-    with chat_box.chat_message("assistant"):
-        with st.spinner("Generating..."):
+    st.rerun()
+
+if len(st.session_state.messages) > 0 and st.session_state.messages[-1]["role"] == "user":
+    user_text = st.session_state.messages[-1]["content"]
+    with st.chat_message("assistant"):
+        with st.spinner("Thinking..."):
             try:
-                comp = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=[{"role": "user", "content": query}])
-                ans = comp.choices[0].message.content
+                res = client.chat.completions.create(
+                    model="llama-3.3-70b-versatile", 
+                    messages=[{"role": "user", "content": user_text}]
+                )
+                ans = res.choices[0].message.content
                 st.markdown(ans)
                 st.session_state.messages.append({"role": "assistant", "content": ans})
-                st.rerun()
             except Exception as e: st.error(e)
