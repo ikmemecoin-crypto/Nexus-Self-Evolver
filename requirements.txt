@@ -3,3 +3,4 @@ PyGithub
 Pillow
 groq
 requests
+streamlit
