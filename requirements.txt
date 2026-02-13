@@ -4,3 +4,4 @@ Pillow
 groq
 requests
 streamlit
+pandas
