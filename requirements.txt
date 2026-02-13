@@ -1,5 +1,5 @@
-streamlit
 google-genai
-tavily-python
 PyGithub
+Pillow
+groq
 requests
