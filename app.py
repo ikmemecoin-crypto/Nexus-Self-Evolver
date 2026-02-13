@@ -3,7 +3,7 @@ import json
 import io
 from PIL import Image
 
-# --- 1. CORE ENGINE ---
+# --- 1. CORE ENGINE & SYNC ---
 try:
     from groq import Groq
     from github import Github
@@ -31,54 +31,49 @@ st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500&display=swap');
     html, body, [class*="st-"] { font-family: 'Google Sans', sans-serif; background-color: #080808 !important; color: #f0f0f0 !important; }
-
-    /* Gemini-Grok Header */
     .hero-text {
         font-size: 3.5rem; font-weight: 500;
         background: linear-gradient(90deg, #4285F4, #9B72CB, #D96570);
         -webkit-background-clip: text; -webkit-text-fill-color: transparent;
         text-align: center; margin-top: 1rem;
     }
-
-    /* Sidebar Base Standard */
     [data-testid="stSidebar"] { background-color: #111111 !important; border-right: 1px solid #222 !important; }
-    
-    /* Pill Input Bar */
-    .stChatInputContainer {
-        background-color: #1e1f20 !important;
-        border: 1px solid #3c4043 !important;
-        border-radius: 28px !important;
-    }
-
-    /* Suggested Cards */
+    .stChatInputContainer { background-color: #1e1f20 !important; border: 1px solid #3c4043 !important; border-radius: 28px !important; }
     .stButton > button {
-        background-color: #161616 !important;
-        border: 1px solid #222 !important;
-        color: #aaa !important;
-        border-radius: 12px !important;
-        padding: 20px !important;
-        width: 100% !important;
-        transition: 0.3s !important;
+        background-color: #161616 !important; border: 1px solid #222 !important;
+        color: #aaa !important; border-radius: 12px !important;
+        width: 100% !important; transition: 0.3s !important;
     }
     .stButton > button:hover { border-color: #4285F4 !important; color: white !important; background: #1c1c1c !important; }
-
     #MainMenu, footer, header { visibility: hidden; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. SIDEBAR (BASE STANDARD CONTROLS) ---
+# --- 3. SIDEBAR (BASE STANDARD + VERSION CONTROL) ---
 with st.sidebar:
     st.markdown("<h2 style='color:#4285F4;'>Nexus Vault</h2>", unsafe_allow_html=True)
     project = st.selectbox("Vault Focus", ["General", "Coding", "Research"])
+    
     st.markdown("---")
-    st.markdown("### ✍️ Auto-Writer")
-    fname = st.text_input("File Name", "logic.py")
-    code_body = st.text_area("Code to Deploy", height=150)
-    if st.button("🚀 Push to GitHub"):
+    tab1, tab2 = st.tabs(["✍️ Writer", "📁 Files"])
+    
+    with tab1:
+        fname = st.text_input("File Name", "logic.py")
+        code_body = st.text_area("Code to Deploy", height=150)
+        if st.button("🚀 Push to GitHub"):
+            try:
+                repo.create_file(fname, "Architect Deploy", code_body)
+                st.success("Deployed!")
+            except Exception as e: st.error(f"Error: {e}")
+
+    with tab2:
+        st.markdown("### Repository Assets")
         try:
-            repo.create_file(fname, "Architect Deploy", code_body)
-            st.success("Deployed to GitHub!")
-        except Exception as e: st.error(f"Write Error: {e}")
+            contents = repo.get_contents("")
+            for file_content in contents:
+                if st.button(f"📄 {file_content.name}", key=file_content.sha):
+                    st.code(file_content.decoded_content.decode(), language='python')
+        except: st.warning("Could not load file list.")
 
 # --- 4. FRONT PAGE DISPLAY ---
 st.markdown('<div class="hero-text">Nexus Omni</div>', unsafe_allow_html=True)
@@ -87,7 +82,6 @@ st.markdown("<p style='text-align:center; color:#666; font-size:1.2rem; margin-b
 # Functional Suggested Cards
 c1, c2, c3, c4 = st.columns(4)
 suggested_query = None
-
 with c1: 
     if st.button("📝 Code Script"): suggested_query = "Write a Python script for automation"
 with c2: 
@@ -113,16 +107,12 @@ if query and client:
     st.session_state.messages.append({"role": "user", "content": query})
     with st.chat_message("assistant", avatar="✨"):
         try:
-            # Sync Logic (Atomic Fetch to prevent 409 Conflict)
             mem_path = f"memory_{project.lower()}.json"
             try:
-                f = repo.get_contents(mem_path)
-                vault = json.loads(f.decoded_content.decode())
-                sha = f.sha
+                f = repo.get_contents(mem_path); vault = json.loads(f.decoded_content.decode()); sha = f.sha
             except:
                 vault, sha = {"history": []}, None
 
-            # Generate response
             comp = client.chat.completions.create(
                 model="llama-3.3-70b-versatile", 
                 messages=[{"role": "user", "content": query}]
@@ -131,12 +121,9 @@ if query and client:
             st.markdown(ans)
             st.session_state.messages.append({"role": "assistant", "content": ans})
 
-            # Save to Learning Vault
             if "history" not in vault: vault["history"] = []
             vault["history"].append(query[:60])
             if sha: repo.update_file(mem_path, "Learning Sync", json.dumps(vault), sha)
             else: repo.create_file(mem_path, "Vault Init", json.dumps(vault))
-            
             st.rerun()
-        except Exception as e:
-            st.error(f"System Error: {e}")
+        except Exception as e: st.error(f"System Error: {e}")
