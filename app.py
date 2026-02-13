@@ -3,12 +3,12 @@ import json
 import io
 from PIL import Image
 
-# --- 1. CORE IMPORTS & ERROR HANDLING ---
+# --- 1. CORE IMPORTS & VERIFICATION ---
 try:
     from groq import Groq
     from github import Github
 except ImportError:
-    st.error("Check requirements.txt: groq and PyGithub are required.")
+    st.error("Missing Libraries! Run: pip install groq PyGithub")
     st.stop()
 
 # --- 2. AUTHENTICATION ---
@@ -25,102 +25,108 @@ def init_nexus():
 
 client, repo = init_nexus()
 
-# --- 3. FRONT PAGE LAYOUT (MINIMALIST MATERIAL) ---
-st.set_page_config(page_title="Nexus Omni", layout="wide")
+# --- 3. GEMINI STYLE CSS (100% ACCURACY CHECK) ---
+st.set_page_config(page_title="Nexus", layout="wide")
+
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500&display=swap');
-    html, body, [class*="st-"] { font-family: 'Google Sans', sans-serif; background-color: #131314; color: #e3e3e3; }
     
-    .google-header { 
-        font-size: 3.5rem; font-weight: 500; text-align: center; 
-        background: linear-gradient(90deg, #4285F4 0%, #34A853 30%, #FBBC05 60%, #EA4335 100%); 
-        -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-        padding-top: 20px;
-    }
-    
-    /* Center the chat container */
-    .chat-wrapper { max-width: 800px; margin: auto; }
-    
-    /* Bottom Control Panel Styling */
-    .bottom-panel {
-        position: fixed; bottom: 0; left: 0; width: 100%;
-        background-color: #1e1f20; border-top: 1px solid #3c4043;
-        padding: 10px 20px; z-index: 99;
+    /* Overall Background */
+    html, body, [class*="st-"] { 
+        font-family: 'Google Sans', sans-serif; 
+        background-color: #131314 !important; 
+        color: #e3e3e3 !important; 
     }
 
-    [data-testid="stSidebar"] { display: none; } /* Moving features from sidebar to bottom */
+    /* Main Container Padding */
+    .main .block-container { max-width: 900px; padding-top: 5rem; }
+
+    /* Gemini Header */
+    .gemini-header {
+        font-size: 2.2rem; font-weight: 500; margin-bottom: 2rem;
+        background: linear-gradient(75deg, #4285F4, #D96570, #9B72CB);
+        -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+
+    /* Chat Bubbles Style */
+    .stChatMessage { background-color: transparent !important; border: none !important; }
+    
+    /* Floating Pill Input Bar */
+    .stChatInputContainer {
+        background-color: #1e1f20 !important;
+        border: 1px solid #3c4043 !important;
+        border-radius: 32px !important;
+        padding: 5px 15px !important;
+        margin-bottom: 20px !important;
+    }
+
+    /* Sidebar minimalization */
+    [data-testid="stSidebar"] { background-color: #131314 !important; border: none !important; }
+    
+    /* Hide default streamlit elements */
     #MainMenu, footer, header { visibility: hidden; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 4. FRONT PAGE HEADER ---
-st.markdown('<div class="google-header">Nexus Omni</div>', unsafe_allow_html=True)
-st.markdown("<p style='text-align:center; color:#8e918f;'>System: Optimal | Architect Mode Active</p>", unsafe_allow_html=True)
+# --- 4. SIDEBAR (HIDDEN SETTINGS) ---
+with st.sidebar:
+    st.markdown("### Settings")
+    project = st.selectbox("Active Vault", ["General", "Coding", "Research"])
+    st.markdown("---")
+    # Deploy Feature (Moved to sidebar for cleaner chat)
+    with st.expander("🚀 Deploy Code"):
+        fname = st.text_input("Filename", "nexus_script.py")
+        code_in = st.text_area("Code", height=150)
+        if st.button("Push to GitHub"):
+            try:
+                repo.create_file(fname, "Auto-Deploy", code_in)
+                st.success("File Pushed!")
+            except Exception as e: st.error(e)
+
+# --- 5. CHAT INTERFACE ---
+st.markdown('<div class="gemini-header">Nexus Omni</div>', unsafe_allow_html=True)
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# --- 5. CHAT DISPLAY ---
-chat_area = st.container(height=450, border=False)
-with chat_area:
-    for m in st.session_state.messages:
-        with st.chat_message(m["role"], avatar="✨" if m["role"] == "assistant" else None):
-            st.markdown(m["content"])
+# Display Messages (Wide Format)
+for m in st.session_state.messages:
+    with st.chat_message(m["role"], avatar="✨" if m["role"] == "assistant" else None):
+        st.markdown(m["content"])
 
-# --- 6. BOTTOM CONTROL PANEL & INPUT ---
-st.markdown('<div class="bottom-panel">', unsafe_allow_html=True)
-cols = st.columns([2, 2, 6])
+# Pill-shaped Input Bar
+query = st.chat_input("Enter a prompt here")
 
-with cols[0]:
-    project = st.selectbox("Vault", ["General", "Coding", "Research"], label_visibility="collapsed")
-
-with cols[1]:
-    # Quick Upload for media
-    uploaded_file = st.file_uploader("Upload", type=['png', 'jpg', 'jpeg'], label_visibility="collapsed")
-
-with cols[2]:
-    query = st.chat_input("Command Nexus...")
-
-# Auto-Writer (Bottom Expanded Feature)
-with st.expander("✍️ Auto-Writer & Deployment Console"):
-    cw1, cw2 = st.columns([1, 2])
-    fname = cw1.text_input("Filename", "nexus_module.py")
-    code_in = cw2.text_area("Source Code", height=100)
-    if st.button("🚀 Deploy to GitHub"):
-        try:
-            repo.create_file(fname, f"Nexus Auto-Deploy", code_in)
-            st.success("Deployed!")
-        except Exception as e: st.error(f"Error: {e}")
-
-# --- 7. EXECUTION LOGIC ---
+# --- 6. LOGIC & AUTO-LEARN ---
 if query and client:
     st.session_state.messages.append({"role": "user", "content": query})
-    with chat_area:
-        with st.chat_message("assistant", avatar="✨"):
+    with st.chat_message("assistant", avatar="✨"):
+        try:
+            # Atomic Learning Sync (Fixes 409)
+            mem_path = f"memory_{project.lower()}.json"
             try:
-                # Fresh SHA fetch for Learning Sync (Prevents 409 error)
-                mem_path = f"memory_{project.lower()}.json"
-                try:
-                    f_meta = repo.get_contents(mem_path)
-                    vault = json.loads(f_meta.decoded_content.decode())
-                    sha = f_meta.sha
-                except:
-                    vault, sha = {"history": []}, None
+                f_meta = repo.get_contents(mem_path)
+                vault = json.loads(f_meta.decoded_content.decode())
+                sha = f_meta.sha
+            except:
+                vault, sha = {"history": []}, None
 
-                # Generate
-                comp = client.chat.completions.create(
-                    model="llama-3.3-70b-versatile",
-                    messages=[{"role": "user", "content": query}]
-                )
-                ans = comp.choices[0].message.content
-                st.markdown(ans)
-                st.session_state.messages.append({"role": "assistant", "content": ans})
+            # Generate response
+            comp = client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[{"role": "user", "content": query}]
+            )
+            ans = comp.choices[0].message.content
+            st.markdown(ans)
+            st.session_state.messages.append({"role": "assistant", "content": ans})
 
-                # Sync Learning
-                vault["history"].append(query[:50])
-                if sha: repo.update_file(mem_path, "Sync", json.dumps(vault), sha)
-                else: repo.create_file(mem_path, "Init", json.dumps(vault))
-                
-                st.rerun()
-            except Exception as e: st.error(f"Neural Error: {e}")
+            # Save Learning
+            if "history" not in vault: vault["history"] = []
+            vault["history"].append(query[:50])
+            if sha: repo.update_file(mem_path, "Nexus Sync", json.dumps(vault), sha)
+            else: repo.create_file(mem_path, "Nexus Init", json.dumps(vault))
+            
+            st.rerun()
+        except Exception as e:
+            st.error(f"Neural Error: {e}")
