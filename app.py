@@ -8,10 +8,10 @@ try:
     from groq import Groq
     from github import Github
 except ImportError:
-    st.error("Library Missing: Run 'pip install groq PyGithub'")
+    st.error("Missing Libraries! Please ensure 'requirements.txt' is updated.")
     st.stop()
 
-# --- 2. THE ARCHITECT ENGINE ---
+# --- 2. AUTHENTICATION ---
 @st.cache_resource
 def init_nexus():
     try:
@@ -37,73 +37,69 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 4. SIDEBAR (LEARNING & WRITING CONTROLS) ---
+# --- 4. SIDEBAR (AUTO-WRITER) ---
 with st.sidebar:
     st.markdown("<h2 style='color:white;'>Architect Mode</h2>", unsafe_allow_html=True)
-    project = st.selectbox("Active Vault", ["General", "Coding", "Research"])
+    project = st.selectbox("Vault", ["General", "Coding", "Research"])
     
-    # LOAD MEMORY
-    mem_path = f"memory_{project.lower()}.json"
-    if 'vault' not in st.session_state or st.session_state.get('active_p') != project:
-        try:
-            f = repo.get_contents(mem_path)
-            st.session_state.vault = json.loads(f.decoded_content.decode())
-            st.session_state.mem_sha = f.sha
-        except:
-            st.session_state.vault = {"summary": "New Project", "code_history": []}
-            st.session_state.mem_sha = None
-        st.session_state.active_p = project
-
     st.markdown("---")
     st.markdown("### ✍️ Auto-Writer")
-    new_filename = st.text_input("New File Name", "generated_script.py")
-    code_to_write = st.text_area("Code to Deploy", height=100)
+    new_filename = st.text_input("File Name", "logic_module.py")
+    code_body = st.text_area("Code to Deploy", height=150)
     
     if st.button("🚀 Push to GitHub"):
         try:
-            repo.create_file(new_filename, f"Nexus Auto-Write: {new_filename}", code_to_write)
-            st.success(f"Successfully wrote {new_filename} to GitHub!")
-        except Exception as e:
-            st.error(f"Write Error: {e}")
+            repo.create_file(new_filename, f"Nexus Deploy: {new_filename}", code_body)
+            st.success("File written to GitHub!")
+        except Exception as e: st.error(f"Write Error: {e}")
 
-# --- 5. CHAT & AUTO-LEARNING ENGINE ---
+# --- 5. THE LEARNING ENGINE (SYNC FIX) ---
 st.markdown('<div class="google-header">Nexus Omni</div>', unsafe_allow_html=True)
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-chat_container = st.container(height=400, border=False)
-with chat_container:
-    for m in st.session_state.messages:
-        with st.chat_message(m["role"], avatar="✨" if m["role"] == "assistant" else None):
-            st.markdown(m["content"])
+# Chat Display
+for m in st.session_state.messages:
+    with st.chat_message(m["role"], avatar="✨" if m["role"] == "assistant" else None):
+        st.markdown(m["content"])
 
-query = st.chat_input("Command Nexus to write or learn...")
+query = st.chat_input("Command Nexus...")
 
 if query and client:
     st.session_state.messages.append({"role": "user", "content": query})
     with st.chat_message("assistant", avatar="✨"):
-        context = f"Learned context: {st.session_state.vault.get('summary', '')}"
         try:
-            # 1. GENERATE
+            # 1. GENERATE RESPONSE
             comp = client.chat.completions.create(
                 model="llama-3.3-70b-versatile",
-                messages=[{"role": "system", "content": f"You are Nexus Omni. {context}"}, 
-                          {"role": "user", "content": query}]
+                messages=[{"role": "user", "content": query}]
             )
             ans = comp.choices[0].message.content
             st.markdown(ans)
             st.session_state.messages.append({"role": "assistant", "content": ans})
 
-            # 2. AUTO-LEARN (Write back to memory)
-            st.session_state.vault['summary'] = f"{st.session_state.vault['summary']} | {query[:30]}"
-            updated_data = json.dumps(st.session_state.vault)
-            
-            if st.session_state.mem_sha:
-                repo.update_file(mem_path, "Auto-Learning Sync", updated_data, st.session_state.mem_sha)
+            # 2. THE 409 SYNC FIX (Force-Fetch Latest SHA)
+            mem_path = f"memory_{project.lower()}.json"
+            try:
+                current_file = repo.get_contents(mem_path)
+                vault_data = json.loads(current_file.decoded_content.decode())
+                current_sha = current_file.sha
+            except:
+                vault_data = {"history": []}
+                current_sha = None
+
+            # Update memory history
+            if "history" not in vault_data: vault_data["history"] = []
+            vault_data["history"].append(query[:100])
+            new_payload = json.dumps(vault_data)
+
+            # 3. ATOMIC WRITE
+            if current_sha:
+                repo.update_file(mem_path, "Nexus Learning Sync", new_payload, current_sha)
             else:
-                repo.create_file(mem_path, "Initial Vault", updated_data)
-            
+                repo.create_file(mem_path, "Nexus Init", new_payload)
+
             st.rerun()
         except Exception as e:
             st.error(f"Neural Error: {e}")
