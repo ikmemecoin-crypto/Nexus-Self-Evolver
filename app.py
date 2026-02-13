@@ -17,129 +17,114 @@ def init_nexus():
 
 client, repo = init_nexus()
 
-# --- 2. PROFESSIONAL STYLING ---
-st.set_page_config(page_title="Nexus Omni Pro", layout="wide", initial_sidebar_state="collapsed")
+# --- 2. THEME & PROFESSIONAL STYLING ---
+st.set_page_config(page_title="Nexus Pro", layout="wide", initial_sidebar_state="collapsed")
 
-st.markdown("""
+# Theme Selection
+if "theme_mode" not in st.session_state:
+    st.session_state.theme_mode = "Dark"
+
+# CSS Variables based on Theme
+if st.session_state.theme_mode == "Dark":
+    bg, card, text, accent = "#0E1117", "#1A1C23", "#E0E0E0", "#58a6ff"
+else:
+    bg, card, text, accent = "#F0F2F6", "#FFFFFF", "#1E1E1E", "#007BFF"
+
+st.markdown(f"""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
+    html, body, [class*="st-"] {{ font-family: 'Inter', sans-serif; background-color: {bg} !important; color: {text} !important; }}
     
-    html, body, [class*="st-"] {
-        font-family: 'Inter', sans-serif;
-        background-color: #0E1117 !important;
-        color: #E0E0E0 !important;
-    }
-    
-    /* Card Styling */
-    div[data-testid="stVerticalBlock"] > div:has(div.stMarkdown) {
-        background: #1A1C23;
-        border-radius: 12px;
-        padding: 20px;
-        border: 1px solid #30363D;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-    }
-    
-    /* Header Gradient */
-    .main-title {
-        font-size: 40px;
-        font-weight: 600;
+    /* Professional Card Glassmorphism */
+    div[data-testid="stVerticalBlock"] > div:has(div.stMarkdown) {{
+        background: {card}; border-radius: 16px; padding: 24px;
+        border: 1px solid rgba(128, 128, 128, 0.2);
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.1);
+    }}
+
+    .main-title {{
+        font-size: 36px; font-weight: 600;
         background: linear-gradient(120deg, #58a6ff, #bc8cff);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        margin-bottom: 30px;
-    }
-
-    /* Buttons */
-    .stButton>button {
-        border-radius: 8px;
-        border: none;
-        background: #238636;
-        color: white;
-        transition: 0.3s;
-    }
-    .stButton>button:hover {
-        background: #2ea043;
-        transform: translateY(-2px);
-    }
-
-    [data-testid="stSidebar"] { display: none; }
+        -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }}
+    
+    [data-testid="stSidebar"] {{ display: none; }}
+    #MainMenu, footer, header {{ visibility: hidden; }}
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. HEADER ---
-st.markdown('<div class="main-title">Nexus Omni <span style="font-size:15px; color:#8b949e;">Professional v2.0</span></div>', unsafe_allow_html=True)
+# --- 3. PROFESSIONAL HEADER ---
+c_head1, c_head2 = st.columns([8, 2])
+with c_head1:
+    st.markdown('<div class="main-title">Nexus Omni <span style="font-size:14px; color:gray;">v2.1 Pro</span></div>', unsafe_allow_html=True)
+with c_head2:
+    st.session_state.theme_mode = st.selectbox("Appearance", ["Dark", "Light"], label_visibility="collapsed")
 
-# --- 4. CONTROL CENTER ---
-col_tools, col_chat = st.columns([4, 6], gap="large")
+# --- 4. THE CONTROL CENTER ---
+col_writer, col_chat = st.columns([4, 6], gap="large")
 
-with col_tools:
+with col_writer:
     st.subheader("✍️ Code Architect")
     with st.container():
-        fname = st.text_input("Filename", "main.py", help="Enter name for GitHub")
-        code_body = st.text_area("Source Code", height=250, placeholder="# Write logic here...")
-        if st.button("🚀 Deploy to Production", use_container_width=True):
-            with st.spinner("Pushing to GitHub..."):
+        fname = st.text_input("Filename", value="new_logic.py", help="Name your file for GitHub")
+        code_body = st.text_area("Source Code", height=300, placeholder="# Enter your logic here...")
+        if st.button("🚀 Push to Production", use_container_width=True):
+            with st.spinner("Syncing with Vault..."):
                 try:
-                    repo.create_file(fname, "Pro Deploy", code_body)
-                    st.toast("✅ Deployment Successful!", icon='🚀')
+                    # Check if exists to avoid 422 error
+                    try:
+                        f = repo.get_contents(fname)
+                        repo.update_file(fname, "Architect Update", code_body, f.sha)
+                    except:
+                        repo.create_file(fname, "Architect Deploy", code_body)
+                    st.toast("Deployment Successful!", icon='✅')
                     st.rerun()
-                except Exception as e: st.error(f"Push Error: {e}")
+                except Exception as e: st.error(e)
 
     st.markdown("---")
-    st.subheader("📁 Repository Manager")
+    st.subheader("📁 Repository Vault")
     with st.container():
         try:
-            contents = repo.get_contents("")
-            for f in contents:
+            files = repo.get_contents("")
+            for f in files:
                 if f.type == "file":
                     with st.expander(f"📄 {f.name}"):
-                        st.code(f.decoded_content.decode()[:200] + "...", language='python')
-                        if st.button("Delete File", key=f"del_{f.sha}"):
-                            repo.delete_file(f.path, "Delete", f.sha)
+                        st.code(f.decoded_content.decode()[:150] + "...", language='python')
+                        if st.button("Delete", key=f"del_{f.sha}"):
+                            repo.delete_file(f.path, "Remove", f.sha)
                             st.rerun()
-        except: st.info("Scanning Repository...")
+        except: st.info("Scanning...")
 
 with col_chat:
     st.subheader("💬 Nexus Intelligent Chat")
-    chat_container = st.container(height=550, border=True)
+    chat_box = st.container(height=580, border=True)
     
     if "messages" not in st.session_state:
         st.session_state.messages = []
 
     for m in st.session_state.messages:
-        with chat_container.chat_message(m["role"]):
+        with chat_box.chat_message(m["role"]):
             st.markdown(m["content"])
 
-    # SUGGESTION PILLS
-    cp1, cp2, cp3 = st.columns(3)
-    p_input = None
-    if cp1.button("🛠️ Fix Bug"): p_input = "Analyze my code for errors."
-    if cp2.button("✨ Refactor"): p_input = "Make my UI code more professional."
-    if cp3.button("📦 New Feature"): p_input = "Propose a new feature for this app."
+    # PRO SUGGESTIONS
+    s1, s2, s3 = st.columns(3)
+    p_cmd = None
+    if s1.button("🔍 Audit Code"): p_cmd = "Review my latest GitHub file for security vulnerabilities."
+    if s2.button("📐 UI UX"): p_cmd = "Suggest 3 ways to make this app look even more professional."
+    if s3.button("🧠 Sync Memory"): p_cmd = "Read memory_general.json and summarize our progress."
 
-    query = st.chat_input("Command the Nexus Architect...") or p_input
+    query = st.chat_input("Command the Nexus...") or p_cmd
 
 if query and client:
     st.session_state.messages.append({"role": "user", "content": query})
-    with chat_container.chat_message("user"):
-        st.markdown(query)
+    with chat_box.chat_message("user"): st.markdown(query)
     
-    with chat_container.chat_message("assistant"):
-        with st.spinner("Architecting response..."):
+    with chat_box.chat_message("assistant"):
+        with st.spinner("Generating..."):
             try:
-                # Simple memory check
-                mem_path = "memory_general.json"
-                try:
-                    f_meta = repo.get_contents(mem_path); vault = json.loads(f_meta.decoded_content.decode()); sha = f_meta.sha
-                except: vault, sha = {"history": []}, None
-
                 comp = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=[{"role": "user", "content": query}])
                 ans = comp.choices[0].message.content
                 st.markdown(ans)
                 st.session_state.messages.append({"role": "assistant", "content": ans})
-
-                # Record to Vault
-                vault["history"].append(query[:50])
-                if sha: repo.update_file(mem_path, "Vault Update", json.dumps(vault), sha)
-                else: repo.create_file(mem_path, "Vault Init", json.dumps(vault))
+                st.rerun()
             except Exception as e: st.error(e)
