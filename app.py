@@ -1,7 +1,6 @@
 import streamlit as st
 import json
 import io
-import base64
 from PIL import Image
 
 # --- 1. 5-TIER VERIFIED IMPORTS ---
@@ -9,10 +8,10 @@ try:
     from groq import Groq
     from github import Github
 except ImportError:
-    st.error("Check requirements.txt: groq, PyGithub needed.")
+    st.error("Library Missing: Run 'pip install groq PyGithub'")
     st.stop()
 
-# --- 2. THE "LEARNING" ENGINE ---
+# --- 2. THE ARCHITECT ENGINE ---
 @st.cache_resource
 def init_nexus():
     try:
@@ -21,12 +20,12 @@ def init_nexus():
         r = gh.get_repo(st.secrets["GH_REPO"])
         return g_client, r
     except Exception as e:
-        st.error(f"Sync Failed: {e}")
+        st.error(f"Nexus Sync Offline: {e}")
         return None, None
 
 client, repo = init_nexus()
 
-# --- 3. UI CONFIG ---
+# --- 3. UI CONFIG (DARK MATERIAL) ---
 st.set_page_config(page_title="Nexus Omni", layout="wide")
 st.markdown("""
     <style>
@@ -38,69 +37,73 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 4. SIDEBAR & MEMORY SYNC ---
+# --- 4. SIDEBAR (LEARNING & WRITING CONTROLS) ---
 with st.sidebar:
-    st.markdown("<h2 style='color:white;'>Nexus Omni</h2>", unsafe_allow_html=True)
-    project = st.selectbox("Vault (Learning Focus)", ["General", "Coding", "Research"])
+    st.markdown("<h2 style='color:white;'>Architect Mode</h2>", unsafe_allow_html=True)
+    project = st.selectbox("Active Vault", ["General", "Coding", "Research"])
     
-    # LOAD MEMORY FROM GITHUB
+    # LOAD MEMORY
     mem_path = f"memory_{project.lower()}.json"
-    if 'vault' not in st.session_state or st.session_state.get('last_p') != project:
+    if 'vault' not in st.session_state or st.session_state.get('active_p') != project:
         try:
             f = repo.get_contents(mem_path)
             st.session_state.vault = json.loads(f.decoded_content.decode())
-            st.session_state.mem_sha = f.sha # For auto-writing updates
+            st.session_state.mem_sha = f.sha
         except:
-            st.session_state.vault = {"summary": "New Project Started", "learned_facts": []}
+            st.session_state.vault = {"summary": "New Project", "code_history": []}
             st.session_state.mem_sha = None
-        st.session_state.last_p = project
+        st.session_state.active_p = project
 
-    aud_in = st.audio_input("Voice")
+    st.markdown("---")
+    st.markdown("### ✍️ Auto-Writer")
+    new_filename = st.text_input("New File Name", "generated_script.py")
+    code_to_write = st.text_area("Code to Deploy", height=100)
+    
+    if st.button("🚀 Push to GitHub"):
+        try:
+            repo.create_file(new_filename, f"Nexus Auto-Write: {new_filename}", code_to_write)
+            st.success(f"Successfully wrote {new_filename} to GitHub!")
+        except Exception as e:
+            st.error(f"Write Error: {e}")
 
-# --- 5. CHAT & AUTO-LEARNING LOGIC ---
+# --- 5. CHAT & AUTO-LEARNING ENGINE ---
 st.markdown('<div class="google-header">Nexus Omni</div>', unsafe_allow_html=True)
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Display Messages
 chat_container = st.container(height=400, border=False)
 with chat_container:
     for m in st.session_state.messages:
         with st.chat_message(m["role"], avatar="✨" if m["role"] == "assistant" else None):
             st.markdown(m["content"])
 
-query = st.chat_input("Command Nexus...")
+query = st.chat_input("Command Nexus to write or learn...")
 
 if query and client:
     st.session_state.messages.append({"role": "user", "content": query})
     with st.chat_message("assistant", avatar="✨"):
-        # The AI uses past "Learned Facts" to answer
-        context = f"Learned so far: {st.session_state.vault['summary']}"
-        
+        context = f"Learned context: {st.session_state.vault.get('summary', '')}"
         try:
-            # 1. GENERATE RESPONSE
+            # 1. GENERATE
             comp = client.chat.completions.create(
                 model="llama-3.3-70b-versatile",
-                messages=[{"role": "system", "content": f"Context: {context}"}, 
+                messages=[{"role": "system", "content": f"You are Nexus Omni. {context}"}, 
                           {"role": "user", "content": query}]
             )
             ans = comp.choices[0].message.content
             st.markdown(ans)
             st.session_state.messages.append({"role": "assistant", "content": ans})
 
-            # 2. AUTO-LEARNING (Internal Writing)
-            # We update the summary based on the new info
-            new_summary = f"{st.session_state.vault['summary']} | User asked about: {query[:50]}"
-            st.session_state.vault['summary'] = new_summary[-500:] # Keep it tight
-            
-            # 3. AUTO-WRITE TO GITHUB (Learning Persists)
+            # 2. AUTO-LEARN (Write back to memory)
+            st.session_state.vault['summary'] = f"{st.session_state.vault['summary']} | {query[:30]}"
             updated_data = json.dumps(st.session_state.vault)
+            
             if st.session_state.mem_sha:
-                repo.update_file(mem_path, "Nexus Auto-Learning Sync", updated_data, st.session_state.mem_sha)
+                repo.update_file(mem_path, "Auto-Learning Sync", updated_data, st.session_state.mem_sha)
             else:
-                repo.create_file(mem_path, "Nexus Initial Memory", updated_data)
+                repo.create_file(mem_path, "Initial Vault", updated_data)
             
             st.rerun()
         except Exception as e:
-            st.error(f"Learning Sync Error: {e}")
+            st.error(f"Neural Error: {e}")
