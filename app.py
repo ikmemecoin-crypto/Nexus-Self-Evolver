@@ -1,14 +1,9 @@
 import streamlit as st
 import json
-import base64
-import requests
-from io import BytesIO
 from groq import Groq
 from github import Github
-from streamlit_mic_recorder import mic_recorder
-from gtts import gTTS
 
-# --- 1. CORE ENGINE STABILITY CHECK ---
+# --- 1. CORE SYNC ---
 @st.cache_resource
 def init_nexus():
     try:
@@ -17,142 +12,119 @@ def init_nexus():
         r = gh.get_repo(st.secrets["GH_REPO"])
         return g_client, r
     except Exception as e:
+        st.error(f"Sync Offline: {e}")
         return None, None
 
 client, repo = init_nexus()
 
-# --- 2. THE VISUAL CLONE ENGINE (CSS) ---
-st.set_page_config(page_title="Nexus Pro v3.2", layout="wide", initial_sidebar_state="collapsed")
+# --- 2. THEME & PROFESSIONAL STYLING ---
+st.set_page_config(page_title="Nexus Pro", layout="wide", initial_sidebar_state="collapsed")
 
-if "theme_mode" not in st.session_state: st.session_state.theme_mode = "Dark"
-bg, card, text = ("#0E1117", "#1A1C23", "#E0E0E0") if st.session_state.theme_mode == "Dark" else ("#F0F2F6", "#FFFFFF", "#1E1E1E")
+# Theme Selection
+if "theme_mode" not in st.session_state:
+    st.session_state.theme_mode = "Dark"
+
+# CSS Variables based on Theme
+if st.session_state.theme_mode == "Dark":
+    bg, card, text, accent = "#0E1117", "#1A1C23", "#E0E0E0", "#58a6ff"
+else:
+    bg, card, text, accent = "#F0F2F6", "#FFFFFF", "#1E1E1E", "#007BFF"
 
 st.markdown(f"""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
     html, body, [class*="st-"] {{ font-family: 'Inter', sans-serif; background-color: {bg} !important; color: {text} !important; }}
     
-    /* Main Centered Card matching your Image */
-    .main-wrapper {{
-        background: {card}; border-radius: 24px; padding: 40px;
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        box-shadow: 0 20px 60px rgba(0,0,0,0.6);
-        max-width: 1200px; margin: auto;
-    }}
-    
-    .nexus-title {{
-        font-size: 45px; font-weight: 700; margin-bottom: 25px;
-        background: linear-gradient(135deg, #58a6ff 0%, #bc8cff 100%);
-        -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    /* Professional Card Glassmorphism */
+    div[data-testid="stVerticalBlock"] > div:has(div.stMarkdown) {{
+        background: {card}; border-radius: 16px; padding: 24px;
+        border: 1px solid rgba(128, 128, 128, 0.2);
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.1);
     }}
 
-    /* Custom Button Tabs matching the image navigation */
-    .stTabs [data-baseweb="tab-list"] {{ gap: 12px; }}
-    .stTabs [data-baseweb="tab"] {{
-        background-color: rgba(255,255,255,0.05) !important; border-radius: 12px !important;
-        padding: 12px 24px !important; border: 1px solid rgba(255,255,255,0.1) !important;
-        color: #8b949e !important; height: 55px; transition: 0.3s;
-    }}
-    .stTabs [aria-selected="true"] {{
-        border: 2px solid #58a6ff !important; background-color: rgba(88, 166, 255, 0.1) !important;
-        color: white !important;
+    .main-title {{
+        font-size: 36px; font-weight: 600;
+        background: linear-gradient(120deg, #58a6ff, #bc8cff);
+        -webkit-background-clip: text; -webkit-text-fill-color: transparent;
     }}
     
-    /* Hide Streamlit elements */
-    header, footer {{ visibility: hidden; }}
-    .block-container {{ padding-top: 3rem; }}
+    [data-testid="stSidebar"] {{ display: none; }}
+    #MainMenu, footer, header {{ visibility: hidden; }}
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. MASTER APPLICATION UI ---
-st.markdown('<div class="main-wrapper">', unsafe_allow_html=True)
+# --- 3. PROFESSIONAL HEADER ---
+c_head1, c_head2 = st.columns([8, 2])
+with c_head1:
+    st.markdown('<div class="main-title">Nexus Omni <span style="font-size:14px; color:gray;">v2.1 Pro</span></div>', unsafe_allow_html=True)
+with c_head2:
+    st.session_state.theme_mode = st.selectbox("Appearance", ["Dark", "Light"], label_visibility="collapsed")
 
-head_l, head_r = st.columns([7, 3])
-with head_l: st.markdown('<div class="nexus-title">Nexus Omni <span style="font-size:16px; color:#8b949e; font-weight:400;">v3.2 Pro</span></div>', unsafe_allow_html=True)
-with head_r: st.session_state.theme_mode = st.radio("Appearance", ["Dark", "Light"], horizontal=True, label_visibility="collapsed")
+# --- 4. THE CONTROL CENTER ---
+col_writer, col_chat = st.columns([4, 6], gap="large")
 
-# Tab definition - initialized before use to prevent NameError
-tabs = st.tabs(["🖋️ Architect & Vault", "💬 English Chat", "🎙️ English Voice", "🖼️ Media Studio", "🧪 Live Sandbox"])
-
-# TAB 1: ARCHITECT
-with tabs[0]:
-    st.subheader("Production Vault")
-    arch_c1, arch_c2 = st.columns(2)
-    with arch_c1:
-        fname = st.text_input("Filename", "app.py", key="arch_filename")
-        fcode = st.text_area("Source Code", height=250, key="arch_source")
-        if st.button("🚀 Push to GitHub", use_container_width=True):
-            if repo:
+with col_writer:
+    st.subheader("✍️ Code Architect")
+    with st.container():
+        fname = st.text_input("Filename", value="new_logic.py", help="Name your file for GitHub")
+        code_body = st.text_area("Source Code", height=300, placeholder="# Enter your logic here...")
+        if st.button("🚀 Push to Production", use_container_width=True):
+            with st.spinner("Syncing with Vault..."):
                 try:
-                    try: 
-                        target = repo.get_contents(fname)
-                        repo.update_file(fname, "Architect Sync", fcode, target.sha)
-                    except: 
-                        repo.create_file(fname, "Architect Init", fcode)
-                    st.success("Deployment Successful!")
-                except Exception as e: st.error(f"GitHub Error: {e}")
-    with arch_c2:
-        st.info("Scanning Repository...")
-        if repo:
-            try:
-                for f in repo.get_contents(""):
-                    if f.type == "file": st.text(f"📄 {f.name}")
-            except: st.warning("Connection to GitHub repo failed.")
+                    # Check if exists to avoid 422 error
+                    try:
+                        f = repo.get_contents(fname)
+                        repo.update_file(fname, "Architect Update", code_body, f.sha)
+                    except:
+                        repo.create_file(fname, "Architect Deploy", code_body)
+                    st.toast("Deployment Successful!", icon='✅')
+                    st.rerun()
+                except Exception as e: st.error(e)
 
-# TAB 2: CHAT
-with tabs[1]:
-    if "messages" not in st.session_state: st.session_state.messages = []
-    chat_box = st.container(height=400, border=True)
-    for m in st.session_state.messages:
-        with chat_box.chat_message(m["role"]): st.markdown(m["content"])
+    st.markdown("---")
+    st.subheader("📁 Repository Vault")
+    with st.container():
+        try:
+            files = repo.get_contents("")
+            for f in files:
+                if f.type == "file":
+                    with st.expander(f"📄 {f.name}"):
+                        st.code(f.decoded_content.decode()[:150] + "...", language='python')
+                        if st.button("Delete", key=f"del_{f.sha}"):
+                            repo.delete_file(f.path, "Remove", f.sha)
+                            st.rerun()
+        except: st.info("Scanning...")
+
+with col_chat:
+    st.subheader("💬 Nexus Intelligent Chat")
+    chat_box = st.container(height=580, border=True)
     
-    # Action buttons from visual image
-    c_btn1, c_btn2, c_btn3 = st.columns(3)
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+
+    for m in st.session_state.messages:
+        with chat_box.chat_message(m["role"]):
+            st.markdown(m["content"])
+
+    # PRO SUGGESTIONS
+    s1, s2, s3 = st.columns(3)
     p_cmd = None
-    if c_btn1.button("🔍 Audit Code", use_container_width=True): p_cmd = "Audit the security of my code."
-    if c_btn2.button("📐 UI UX", use_container_width=True): p_cmd = "Suggest 3 UI improvements."
-    if c_btn3.button("🧠 Sync Memory", use_container_width=True): p_cmd = "Review our project status."
+    if s1.button("🔍 Audit Code"): p_cmd = "Review my latest GitHub file for security vulnerabilities."
+    if s2.button("📐 UI UX"): p_cmd = "Suggest 3 ways to make this app look even more professional."
+    if s3.button("🧠 Sync Memory"): p_cmd = "Read memory_general.json and summarize our progress."
 
-    query = st.chat_input("Command the Nexus in English...") or p_cmd
-    if query and client:
-        st.session_state.messages.append({"role": "user", "content": query})
-        with chat_box.chat_message("user"): st.markdown(query)
-        with chat_box.chat_message("assistant"):
-            res = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=[{"role":"system","content":"Reply ONLY in English."}]+st.session_state.messages).choices[0].message.content
-            st.markdown(res)
-            st.session_state.messages.append({"role": "assistant", "content": res})
-            st.rerun()
+    query = st.chat_input("Command the Nexus...") or p_cmd
 
-# TAB 3: VOICE
-with tabs[2]:
-    st.subheader("English Voice AI")
-    audio = mic_recorder(start_prompt="🎤 Start Talking", stop_prompt="🛑 Stop Talking", key='v_bot')
-    if audio and client:
-        with st.spinner("Processing Voice..."):
-            a_data = BytesIO(audio['bytes']); a_data.name = "audio.wav"
-            text_trans = client.audio.transcriptions.create(model="whisper-large-v3", file=a_data).text
-            ai_res = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=[{"role":"user","content":text_trans}]).choices[0].message.content
-            st.write(f"**Recognized:** {text_trans}")
-            st.write(f"**Nexus:** {ai_res}")
-            tts = gTTS(text=ai_res, lang='en'); b_io = BytesIO(); tts.write_to_fp(b_io)
-            st.audio(b_io.getvalue(), format="audio/mp3", autoplay=True)
-
-# TAB 4: MEDIA STUDIO (Fixed Image Logic)
-with tabs[3]:
-    st.subheader("Media Studio")
-    m_prompt = st.text_input("Image Description:", key="media_input")
-    if st.button("✨ Generate Professional Asset", use_container_width=True):
-        if m_prompt:
-            # High-fidelity pollinations link with no-cache to force refresh
-            img_url = f"https://image.pollinations.ai/prompt/{m_prompt.replace(' ', '%20')}?width=1024&height=768&nologo=true&seed=42"
-            st.image(img_url, caption=m_prompt, use_container_width=True)
-
-# TAB 5: SANDBOX
-with tabs[4]:
-    st.subheader("Live Sandbox")
-    test_code = st.text_area("Test Script:", value='st.balloons()\nst.success("System Fully Online!")', height=150)
-    if st.button("⚙️ Execute Code"):
-        try: exec(test_code)
-        except Exception as e: st.error(f"Sandbox Error: {e}")
-
-st.markdown('</div>', unsafe_allow_html=True)
+if query and client:
+    st.session_state.messages.append({"role": "user", "content": query})
+    with chat_box.chat_message("user"): st.markdown(query)
+    
+    with chat_box.chat_message("assistant"):
+        with st.spinner("Generating..."):
+            try:
+                comp = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=[{"role": "user", "content": query}])
+                ans = comp.choices[0].message.content
+                st.markdown(ans)
+                st.session_state.messages.append({"role": "assistant", "content": ans})
+                st.rerun()
+            except Exception as e: st.error(e)
