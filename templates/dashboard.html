@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <title>Sovereign AI | Command Center</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .glow { box-shadow: 0 0 15px rgba(34, 211, 238, 0.5); }
+        body { background: #0a0a0a; color: #e5e5e5; font-family: 'Courier New', monospace; }
+    </style>
+</head>
+<body class="p-8">
+    <div class="max-w-6xl mx-auto">
+        <header class="flex justify-between items-center border-b border-cyan-900 pb-4 mb-8">
+            <h1 class="text-3xl font-bold text-cyan-400 tracking-widest">SOVEREIGN_NODE_V1</h1>
+            <div id="status-badge" class="px-4 py-1 rounded-full bg-cyan-950 text-cyan-400 border border-cyan-400 glow">SYSTEM_ONLINE</div>
+        </header>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="bg-zinc-900 p-6 rounded-lg border border-zinc-800">
+                <h2 class="text-zinc-500 mb-4">VESSEL_HEALTH</h2>
+                <div class="text-2xl mb-2">CPU: <span id="cpu" class="text-cyan-400">--</span></div>
+                <div class="text-2xl">RAM: <span id="ram" class="text-cyan-400">--</span></div>
+            </div>
+
+            <div class="bg-zinc-900 p-6 rounded-lg border border-zinc-800">
+                <h2 class="text-zinc-500 mb-4">SENTINEL_WATCH</h2>
+                <div class="text-2xl mb-2">BTC: <span id="btc" class="text-yellow-500">Scanning...</span></div>
+                <div class="text-sm text-zinc-500">Threshold: < $65,000</div>
+            </div>
+
+            <div class="bg-zinc-900 p-6 rounded-lg border border-zinc-800">
+                <h2 class="text-zinc-500 mb-4">GUARDIAN_SHIELD</h2>
+                <div class="text-green-500 font-bold">ACTIVE</div>
+                <div class="text-sm text-zinc-500">Intrusion Detection: ON</div>
+            </div>
+        </div>
+
+        <div class="mt-8 bg-black p-4 rounded border border-zinc-800 h-64 overflow-y-auto" id="log">
+            <div class="text-zinc-600">[04:21:45] Initialization Complete. All shields up.</div>
+        </div>
+    </div>
+
+    <script>
+        async function updateStats() {
+            try {
+                const response = await fetch('/system/status');
+                const data = await response.json();
+                document.getElementById('cpu').innerText = data.health.cpu_usage;
+                document.getElementById('ram').innerText = data.health.ram_available;
+                
+                const log = document.getElementById('log');
+                const entry = document.createElement('div');
+                entry.className = "text-cyan-800 text-xs";
+                entry.innerText = `[${new Date().toLocaleTimeString()}] System Pulse: OK`;
+                log.prepend(entry);
+            } catch (e) { console.error("Update failed", e); }
+        }
+        setInterval(updateStats, 5000); // Refresh every 5s
+    </script>
+</body>
+</html>
