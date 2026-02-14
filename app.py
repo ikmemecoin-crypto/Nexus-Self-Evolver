@@ -22,7 +22,7 @@ def init_nexus():
 client, repo = init_nexus()
 
 # --- 2. THEME & PROFESSIONAL STYLING ---
-st.set_page_config(page_title="Nexus Pro v2.2", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="Nexus Pro v2.6", layout="wide", initial_sidebar_state="collapsed")
 
 if "theme_mode" not in st.session_state: st.session_state.theme_mode = "Dark"
 bg, card, text, accent = ("#0E1117", "#1A1C23", "#E0E0E0", "#58a6ff") if st.session_state.theme_mode == "Dark" else ("#F0F2F6", "#FFFFFF", "#1E1E1E", "#007BFF")
@@ -46,12 +46,12 @@ st.markdown(f"""
 
 # --- 3. PROFESSIONAL HEADER ---
 c_head1, c_head2 = st.columns([8, 2])
-with c_head1: st.markdown('<div class="main-title">Nexus Omni <span style="font-size:14px; color:gray;">v2.2 Pro</span></div>', unsafe_allow_html=True)
+with c_head1: st.markdown('<div class="main-title">Nexus Omni <span style="font-size:14px; color:gray;">v2.6 Pro</span></div>', unsafe_allow_html=True)
 with c_head2: st.session_state.theme_mode = st.selectbox("Appearance", ["Dark", "Light"], label_visibility="collapsed")
 
 # --- 4. THE 5-TAB ARCHITECTURE ---
 tab_code, tab_chat, tab_voice, tab_media, tab_test = st.tabs([
-    "✍️ Architect & Vault", "💬 Intelligent Chat", "🎙️ Voice Bot (En/Ur)", "🎨 Media Studio", "🧪 Live Sandbox"
+    "✍️ Architect & Vault", "💬 Intelligent Chat", "🎙️ Human Voice (En/Ur)", "🎨 Media Studio", "🧪 Live Sandbox"
 ])
 
 # --- TAB 1: CODE ARCHITECT ---
@@ -80,49 +80,60 @@ with tab_chat:
         with chat_box.chat_message("user"): st.markdown(query)
         with chat_box.chat_message("assistant"):
             try:
-                ans = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=[{"role": "user", "content": query}]).choices[0].message.content
+                # Force Roman Urdu/English personality
+                ans = client.chat.completions.create(
+                    model="llama-3.3-70b-versatile",
+                    messages=[{"role": "system", "content": "You are Nexus. A human-like assistant. Respond ONLY in English or Roman Urdu. Never use Urdu script."}] + st.session_state.messages
+                ).choices[0].message.content
                 st.markdown(ans)
                 st.session_state.messages.append({"role": "assistant", "content": ans})
                 st.rerun()
             except Exception as e: st.error(e)
 
-# --- TAB 3: URDU/ENGLISH VOICE BOT ---
+# --- TAB 3: HUMAN VOICE BOT (EN/UR) ---
 with tab_voice:
     st.subheader("🎙️ Nexus Voice Intelligence")
-    st.markdown("Speak in English or Urdu. The AI will understand and reply audibly.")
-    audio = mic_recorder(start_prompt="🎤 Start Recording", stop_prompt="🛑 Stop Recording", key='recorder')
+    st.write("Mera naam Nexus hai. Baat karein English ya Roman Urdu mein!")
+    audio = mic_recorder(start_prompt="🎤 Start Talking", stop_prompt="🛑 Stop Talking", key='recorder')
     
     if audio and client:
-        with st.spinner("Transcribing and Thinking..."):
-            # 1. Save audio temporarily
-            audio_bytes = audio['bytes']
-            # Note: Groq Whisper API requires a file. In production, we write to a temp file.
-            # For this UI architecture, we simulate the logic structure:
-            st.info("Audio captured successfully. (Groq Whisper API integration ready for audio bytes)")
+        with st.spinner("Listening..."):
+            # 1. Transcribe Voice to Text
+            audio_file = BytesIO(audio['bytes'])
+            audio_file.name = "voice.wav"
+            transcript = client.audio.transcriptions.create(model="whisper-large-v3", file=audio_file).text
             
-            # Simulated transcription fallback to text for UI testing:
-            st.success("You can map `client.audio.transcriptions.create(model='whisper-large-v3')` here.")
+            # 2. Get AI Response
+            response = client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[
+                    {"role": "system", "content": "You are Nexus. Speak like a human. Use ONLY English and Roman Urdu. If the user talks to you, respond naturally like a friend."},
+                    {"role": "user", "content": transcript}
+                ]
+            ).choices[0].message.content
+            
+            # 3. Output Text and Voice
+            st.markdown(f"**You said:** {transcript}")
+            st.markdown(f"**Nexus:** {response}")
+            
+            # 4. Generate Human-like Speech
+            tts = gTTS(text=response, lang='en') # 'en' works best for Roman Urdu phonetics
+            audio_out = BytesIO()
+            tts.write_to_fp(audio_out)
+            st.audio(audio_out.getvalue(), format="audio/mp3", autoplay=True)
 
 # --- TAB 4: MEDIA STUDIO ---
 with tab_media:
-    st.subheader("🎨 Multi-Engine Media Studio")
-    st.markdown("Central hub for top-tier image and video generation APIs.")
-    m_type = st.radio("Media Type", ["Picture", "Video"], horizontal=True)
-    m_prompt = st.text_area("Creative Prompt", placeholder="Describe what you want to see...")
-    
-    if st.button("✨ Generate Asset", use_container_width=True):
-        st.warning("Nexus routing active. To generate media directly in this app, please add your Replicate/DALL-E API keys to st.secrets. Alternatively, ask the Gemini Chat Assistant directly to generate images/videos for free.")
+    st.subheader("🎨 Free Media Studio")
+    m_prompt = st.text_input("What should I create for you?", placeholder="A futuristic car in Lahore...")
+    if st.button("✨ Generate Image", use_container_width=True):
+        url = f"https://image.pollinations.ai/prompt/{m_prompt.replace(' ', '%20')}"
+        st.image(url, caption=m_prompt, use_container_width=True)
 
 # --- TAB 5: LIVE SANDBOX ---
 with tab_test:
-    st.subheader("🧪 Production Testing Environment")
-    st.markdown("Test Python code live before pushing it to your GitHub Vault.")
-    test_code = st.text_area("Paste Python code to test:", height=200, value='st.success("Sandbox is fully operational!")')
-    
+    st.subheader("🧪 Production Testing")
+    test_code = st.text_area("Test Code:", height=150, value='st.balloons()\nst.success("System 100% Active!")')
     if st.button("⚙️ Execute Code"):
-        with st.container(border=True):
-            try:
-                # Safe execution environment for Streamlit apps
-                exec(test_code)
-            except Exception as e:
-                st.error(f"Sandbox Error: {e}")
+        try: exec(test_code)
+        except Exception as e: st.error(e)
