@@ -1,7 +1,9 @@
-google-genai
-PyGithub
-Pillow
-groq
-requests
 streamlit
+groq
+streamlit-mic-recorder
+gTTS
+Pillow
 pandas
+duckduckgo-search
+requests
+geocoder
