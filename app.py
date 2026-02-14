@@ -1,130 +1,149 @@
-import streamlit as st
 import json
 from groq import Groq
 from github import Github
+import streamlit as st
 
-# --- 1. CORE SYNC ---
-@st.cache_resource
-def init_nexus():
+# ... (keep your existing init_nexus, theme, header, etc.)
+
+# --- NEW: TOOL DEFINITIONS ---
+def get_tools():
+    return [
+        {
+            "type": "function",
+            "function": {
+                "name": "list_repo_files",
+                "description": "List all files in the repository vault.",
+                "parameters": {"type": "object", "properties": {}},
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "read_file",
+                "description": "Read the full content of a file from the repo.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "File path/name"}
+                    },
+                    "required": ["path"],
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "write_file",
+                "description": "Create or update a file in the repo. Detects if it exists.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string"},
+                        "content": {"type": "string"},
+                        "message": {"type": "string", "description": "Optional commit message"}
+                    },
+                    "required": ["path", "content"],
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "delete_file",
+                "description": "Delete a file from the repo.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string"}
+                    },
+                    "required": ["path"],
+                },
+            },
+        },
+    ]
+
+# --- NEW: TOOL EXECUTION HANDLERS ---
+def execute_tool(tool_call, repo):
+    func_name = tool_call.function.name
+    args = json.loads(tool_call.function.arguments)
+    
     try:
-        g_client = Groq(api_key=st.secrets["GROQ_API_KEY"])
-        gh = Github(st.secrets["GH_TOKEN"])
-        r = gh.get_repo(st.secrets["GH_REPO"])
-        return g_client, r
+        if func_name == "list_repo_files":
+            files = [f.path for f in repo.get_contents("")]
+            return json.dumps({"files": files})
+        
+        elif func_name == "read_file":
+            path = args["path"]
+            file = repo.get_contents(path)
+            content = file.decoded_content.decode()
+            return json.dumps({"content": content[:10000] + ("..." if len(content) > 10000 else "")})  # Truncate if huge
+        
+        elif func_name == "write_file":
+            path = args["path"]
+            content = args["content"]
+            message = args.get("message", "Agent update")
+            try:
+                file = repo.get_contents(path)
+                repo.update_file(path, message, content, file.sha)
+                return json.dumps({"status": "updated", "path": path})
+            except:
+                repo.create_file(path, message, content)
+                return json.dumps({"status": "created", "path": path})
+        
+        elif func_name == "delete_file":
+            path = args["path"]
+            file = repo.get_contents(path)
+            repo.delete_file(path, "Agent delete", file.sha)
+            return json.dumps({"status": "deleted", "path": path})
+            
     except Exception as e:
-        st.error(f"Sync Offline: {e}")
-        return None, None
+        return json.dumps({"error": str(e)})
 
-client, repo = init_nexus()
-
-# --- 2. THEME & PROFESSIONAL STYLING ---
-st.set_page_config(page_title="Nexus Pro", layout="wide", initial_sidebar_state="collapsed")
-
-# Theme Selection
-if "theme_mode" not in st.session_state:
-    st.session_state.theme_mode = "Dark"
-
-# CSS Variables based on Theme
-if st.session_state.theme_mode == "Dark":
-    bg, card, text, accent = "#0E1117", "#1A1C23", "#E0E0E0", "#58a6ff"
-else:
-    bg, card, text, accent = "#F0F2F6", "#FFFFFF", "#1E1E1E", "#007BFF"
-
-st.markdown(f"""
-    <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
-    html, body, [class*="st-"] {{ font-family: 'Inter', sans-serif; background-color: {bg} !important; color: {text} !important; }}
-    
-    /* Professional Card Glassmorphism */
-    div[data-testid="stVerticalBlock"] > div:has(div.stMarkdown) {{
-        background: {card}; border-radius: 16px; padding: 24px;
-        border: 1px solid rgba(128, 128, 128, 0.2);
-        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.1);
-    }}
-
-    .main-title {{
-        font-size: 36px; font-weight: 600;
-        background: linear-gradient(120deg, #58a6ff, #bc8cff);
-        -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-    }}
-    
-    [data-testid="stSidebar"] {{ display: none; }}
-    #MainMenu, footer, header {{ visibility: hidden; }}
-    </style>
-    """, unsafe_allow_html=True)
-
-# --- 3. PROFESSIONAL HEADER ---
-c_head1, c_head2 = st.columns([8, 2])
-with c_head1:
-    st.markdown('<div class="main-title">Nexus Omni <span style="font-size:14px; color:gray;">v2.1 Pro</span></div>', unsafe_allow_html=True)
-with c_head2:
-    st.session_state.theme_mode = st.selectbox("Appearance", ["Dark", "Light"], label_visibility="collapsed")
-
-# --- 4. THE CONTROL CENTER ---
-col_writer, col_chat = st.columns([4, 6], gap="large")
-
-with col_writer:
-    st.subheader("✍️ Code Architect")
-    with st.container():
-        fname = st.text_input("Filename", value="new_logic.py", help="Name your file for GitHub")
-        code_body = st.text_area("Source Code", height=300, placeholder="# Enter your logic here...")
-        if st.button("🚀 Push to Production", use_container_width=True):
-            with st.spinner("Syncing with Vault..."):
-                try:
-                    # Check if exists to avoid 422 error
-                    try:
-                        f = repo.get_contents(fname)
-                        repo.update_file(fname, "Architect Update", code_body, f.sha)
-                    except:
-                        repo.create_file(fname, "Architect Deploy", code_body)
-                    st.toast("Deployment Successful!", icon='✅')
-                    st.rerun()
-                except Exception as e: st.error(e)
-
-    st.markdown("---")
-    st.subheader("📁 Repository Vault")
-    with st.container():
-        try:
-            files = repo.get_contents("")
-            for f in files:
-                if f.type == "file":
-                    with st.expander(f"📄 {f.name}"):
-                        st.code(f.decoded_content.decode()[:150] + "...", language='python')
-                        if st.button("Delete", key=f"del_{f.sha}"):
-                            repo.delete_file(f.path, "Remove", f.sha)
-                            st.rerun()
-        except: st.info("Scanning...")
-
-with col_chat:
-    st.subheader("💬 Nexus Intelligent Chat")
-    chat_box = st.container(height=580, border=True)
-    
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
-
-    for m in st.session_state.messages:
-        with chat_box.chat_message(m["role"]):
-            st.markdown(m["content"])
-
-    # PRO SUGGESTIONS
-    s1, s2, s3 = st.columns(3)
-    p_cmd = None
-    if s1.button("🔍 Audit Code"): p_cmd = "Review my latest GitHub file for security vulnerabilities."
-    if s2.button("📐 UI UX"): p_cmd = "Suggest 3 ways to make this app look even more professional."
-    if s3.button("🧠 Sync Memory"): p_cmd = "Read memory_general.json and summarize our progress."
-
-    query = st.chat_input("Command the Nexus...") or p_cmd
-
+# --- UPGRADED CHAT WITH AGENT LOOP ---
 if query and client:
     st.session_state.messages.append({"role": "user", "content": query})
-    with chat_box.chat_message("user"): st.markdown(query)
+    with chat_box.chat_message("user"): 
+        st.markdown(query)
     
     with chat_box.chat_message("assistant"):
-        with st.spinner("Generating..."):
-            try:
-                comp = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=[{"role": "user", "content": query}])
-                ans = comp.choices[0].message.content
-                st.markdown(ans)
-                st.session_state.messages.append({"role": "assistant", "content": ans})
-                st.rerun()
-            except Exception as e: st.error(e)
+        with st.spinner("Nexus Thinking..."):
+            # System prompt for powerful agent behavior
+            messages = [
+                {"role": "system", "content": "You are Nexus Omni, an ultra-powerful AI agent. You have full access to the GitHub repository vault via tools. Use tools proactively to read/write/manage files when needed. Reason step-by-step, then act. For memory, use memory_general.json. Be concise but thorough."}
+            ]
+            # Add recent chat history for context
+            messages.extend(st.session_state.messages[-10:])  # Last 10 for context
+            
+            final_response = ""
+            while True:
+                comp = client.chat.completions.create(
+                    model="llama-3.3-70b-versatile",
+                    messages=messages,
+                    tools=get_tools(),
+                    tool_choice="auto",
+                    max_tokens=4096,
+                    temperature=0.7
+                )
+                choice = comp.choices[0].message
+                
+                if choice.content:
+                    final_response += choice.content
+                
+                if not choice.tool_calls:
+                    break  # Final answer
+                
+                # Handle tool calls (supports parallel)
+                for tool_call in choice.tool_calls:
+                    result = execute_tool(tool_call, repo)
+                    messages.append(choice)  # Append assistant message with tool call
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "name": tool_call.function.name,
+                        "content": result
+                    })
+                    final_response += f"\n[Used tool: {tool_call.function.name}]\n"
+            
+            st.markdown(final_response or "Task complete.")
+            st.session_state.messages.append({"role": "assistant", "content": final_response})
+            st.rerun()
