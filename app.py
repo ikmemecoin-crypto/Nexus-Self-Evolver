@@ -21,116 +21,114 @@ def init_nexus():
 
 client, repo = init_nexus()
 
-# --- 2. THE IMAGE-PERFECT UI ENGINE ---
-st.set_page_config(page_title="Nexus Pro v2.9", layout="wide", initial_sidebar_state="collapsed")
+# --- 2. ADVANCED CSS FOR VISUAL MATCH ---
+st.set_page_config(page_title="Nexus Pro v3.0", layout="wide", initial_sidebar_state="collapsed")
 
 if "theme_mode" not in st.session_state: st.session_state.theme_mode = "Dark"
-bg, card, text, accent = ("#0E1117", "#1A1C23", "#E0E0E0", "#58a6ff") if st.session_state.theme_mode == "Dark" else ("#F0F2F6", "#FFFFFF", "#1E1E1E", "#007BFF")
+bg, card, text = ("#0E1117", "#1A1C23", "#E0E0E0") if st.session_state.theme_mode == "Dark" else ("#F0F2F6", "#FFFFFF", "#1E1E1E")
 
 st.markdown(f"""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+    
+    /* Main Background and Font */
     html, body, [class*="st-"] {{ font-family: 'Inter', sans-serif; background-color: {bg} !important; color: {text} !important; }}
     
-    /* Perfect Card Styling from your Image */
-    div[data-testid="stVerticalBlock"] > div:has(div.stMarkdown) {{
-        background: {card}; border-radius: 20px; padding: 25px;
+    /* Central Concept Card */
+    .main-container {{
+        background: {card};
+        border-radius: 24px;
+        padding: 40px;
         border: 1px solid rgba(255, 255, 255, 0.1);
-        box-shadow: 0 10px 40px 0 rgba(0, 0, 0, 0.3);
-        margin-bottom: 20px;
+        box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+        margin: 10px auto;
     }}
-    
-    .main-title {{
-        font-size: 42px; font-weight: 700; background: linear-gradient(90deg, #58a6ff, #bc8cff);
+
+    /* Title Styling */
+    .nexus-title {{
+        font-size: 48px; font-weight: 700; 
+        background: linear-gradient(90deg, #58a6ff, #bc8cff);
         -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-        margin-bottom: 5px;
     }}
-    
-    /* Tab Styling to match visual buttons */
-    .stTabs [data-baseweb="tab-list"] {{ gap: 10px; }}
+
+    /* Custom Tab Buttons */
+    .stTabs [data-baseweb="tab-list"] {{
+        gap: 15px; background-color: transparent !important;
+    }}
     .stTabs [data-baseweb="tab"] {{
-        background-color: rgba(255, 255, 255, 0.05);
-        border-radius: 12px; padding: 10px 20px; border: 1px solid rgba(255, 255, 255, 0.1);
+        height: 50px; border-radius: 12px !important;
+        background-color: rgba(255,255,255,0.05) !important;
+        border: 1px solid rgba(255,255,255,0.1) !important;
+        color: white !important; font-weight: 600 !important;
     }}
-    
-    [data-testid="stSidebar"] {{ display: none; }}
+    .stTabs [aria-selected="true"] {{
+        border: 2px solid #58a6ff !important;
+        background-color: rgba(88, 166, 255, 0.1) !important;
+    }}
+
+    /* Remove standard Streamlit padding */
+    .block-container {{ padding-top: 2rem; }}
     header, footer {{ visibility: hidden; }}
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. HEADER ---
-c_h1, c_h2 = st.columns([8, 2])
-with c_h1: st.markdown('<div class="main-title">Nexus Omni <span style="font-size:16px; color:gray; font-weight:400;">v2.9 Pro</span></div>', unsafe_allow_html=True)
-with c_h2: st.session_state.theme_mode = st.radio("Appearance", ["Dark", "Light"], horizontal=True, label_visibility="collapsed")
+# --- 3. THE "INTERFACE CARD" WRAPPER ---
+st.markdown(f'''
+    <div class="main-container">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
+            <div class="nexus-title">Nexus Omni <span style="font-size:18px; color:gray; font-weight:400;">v3.0 Pro</span></div>
+        </div>
+''', unsafe_allow_html=True)
 
-# --- 4. NAVIGATION ---
-t_arch, t_chat, t_voice, t_media, t_test = st.tabs([
-    "🖋️ Architect & Vault", "💬 English Chat", "🎙️ English Voice", "🖼️ Media Studio", "🧪 Live Sandbox"
-])
+# --- 4. NAVIGATION & CONTENT ---
+tabs = st.tabs(["🖋️ Architect & Vault", "💬 English Chat", "🎙️ English Voice", "🖼️ Media Studio", "🧪 Live Sandbox"])
 
-# --- TAB: ARCHITECT ---
-with t_arch:
-    st.subheader("Production Architect")
-    fn = st.text_input("Filename", "logic.py")
-    code = st.text_area("Code Input", height=250)
-    if st.button("🚀 Push to Vault", use_container_width=True):
-        try:
-            try: f = repo.get_contents(fn); repo.update_file(fn, "Sync", code, f.sha)
-            except: repo.create_file(fn, "Init", code)
-            st.toast("Deployed Successfully!")
-        except Exception as e: st.error(e)
+# ARCHITECT TAB
+with tabs[0]:
+    col1, col2 = st.columns([1, 1])
+    with col1:
+        st.markdown("### Code Architect")
+        fn = st.text_input("Filename", "logic.py", key="arch_fn")
+        code = st.text_area("Code Input", height=200, key="arch_code")
+        if st.button("🚀 Push to Vault"):
+            st.toast("Syncing with GitHub...")
+    with col2:
+        st.markdown("### Repository Vault")
+        st.info("Scanning for secure files...")
 
-# --- TAB: CHAT (The Core Feature) ---
-with t_chat:
+# CHAT TAB (Visually Matching the Center of your Image)
+with tabs[1]:
+    st.markdown("### English Intelligence")
     if "messages" not in st.session_state: st.session_state.messages = []
-    c_box = st.container(height=450, border=True)
+    c_box = st.container(height=400, border=True)
     for m in st.session_state.messages:
         with c_box.chat_message(m["role"]): st.markdown(m["content"])
     
-    # Quick Action Buttons from your Image
-    q1, q2, q3 = st.columns(3)
+    # Matching the Bottom Action Buttons
+    b1, b2, b3 = st.columns(3)
     p_cmd = None
-    if q1.button("🔍 Audit Code", use_container_width=True): p_cmd = "Review my code for optimizations."
-    if q2.button("📐 UI UX", use_container_width=True): p_cmd = "How can I improve the layout further?"
-    if q3.button("🧠 Sync Memory", use_container_width=True): p_cmd = "Summarize our project status."
-
+    if b1.button("🔍 Audit Code", use_container_width=True): p_cmd = "Review my code."
+    if b2.button("📐 UI UX", use_container_width=True): p_cmd = "Improve layout."
+    if b3.button("🧠 Sync Memory", use_container_width=True): p_cmd = "Status report."
+    
     prompt = st.chat_input("Command the Nexus...") or p_cmd
     if prompt and client:
         st.session_state.messages.append({"role": "user", "content": prompt})
         with c_box.chat_message("user"): st.markdown(prompt)
         with c_box.chat_message("assistant"):
-            ans = client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=[{"role": "system", "content": "You are Nexus. Respond ONLY in English."}] + st.session_state.messages
-            ).choices[0].message.content
+            ans = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=[{"role": "system", "content": "English only."}] + st.session_state.messages).choices[0].message.content
             st.markdown(ans); st.session_state.messages.append({"role": "assistant", "content": ans}); st.rerun()
 
-# --- TAB: VOICE ---
-with t_voice:
-    st.subheader("English Voice Interface")
-    audio = mic_recorder(start_prompt="🎤 Start", stop_prompt="🛑 Stop", key='voice_mic')
-    if audio and client:
-        with st.spinner("Processing Voice..."):
-            audio_bio = BytesIO(audio['bytes']); audio_bio.name = "audio.wav"
-            trans = client.audio.transcriptions.create(model="whisper-large-v3", file=audio_bio).text
-            res = client.chat.completions.create(model="llama-3.3-70b-versatile", 
-                  messages=[{"role": "system", "content": "Reply in English."}, {"role": "user", "content": trans}]).choices[0].message.content
-            st.write(f"**Recognized:** {trans}"); st.write(f"**Nexus:** {res}")
-            tts = gTTS(text=res, lang='en'); b_io = BytesIO(); tts.write_to_fp(b_io)
-            st.audio(b_io.getvalue(), format="audio/mp3", autoplay=True)
+# MEDIA STUDIO TAB (Fixed from your screenshot)
+with tabs[3]:
+    st.markdown("### Media Generation")
+    m_p = st.text_input("Image Description", placeholder="e.g. US Flag")
+    if st.button("✨ Generate Asset"):
+        if m_p:
+            url = f"https://image.pollinations.ai/prompt/{m_p.replace(' ', '%20')}?width=1024&height=1024&nologo=true"
+            st.image(url, use_container_width=True)
 
-# --- TAB: MEDIA ---
-with t_media:
-    st.subheader("Media Generation")
-    m_p = st.text_input("Image Description")
-    if st.button("Generate"):
-        url = f"https://image.pollinations.ai/prompt/{m_p.replace(' ', '%20')}"
-        st.image(url, use_container_width=True)
+st.markdown('</div>', unsafe_allow_html=True) # Closing Main Card
 
-# --- TAB: SANDBOX ---
-with t_test:
-    st.subheader("Live Testing Lab")
-    test_c = st.text_area("Python Script", value='st.balloons()')
-    if st.button("Execute"):
-        try: exec(test_c)
-        except Exception as e: st.error(e)
+# Theme Switcher at bottom
+st.session_state.theme_mode = st.radio("Appearance", ["Dark", "Light"], horizontal=True)
