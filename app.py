@@ -1,130 +1,141 @@
 import streamlit as st
-import json
 from groq import Groq
-from github import Github
+from streamlit_mic_recorder import mic_recorder
+import requests, os, time, random
+from PIL import Image
+from io import BytesIO
 
-# --- 1. CORE SYNC ---
-@st.cache_resource
-def init_nexus():
-    try:
-        g_client = Groq(api_key=st.secrets["GROQ_API_KEY"])
-        gh = Github(st.secrets["GH_TOKEN"])
-        r = gh.get_repo(st.secrets["GH_REPO"])
-        return g_client, r
-    except Exception as e:
-        st.error(f"Sync Offline: {e}")
-        return None, None
+# --- 1. SYSTEM INITIALIZATION ---
+st.set_page_config(page_title="Nexus Sovereign Pro", page_icon="⚡", layout="wide")
 
-client, repo = init_nexus()
+if "theme" not in st.session_state: st.session_state.theme = "Light"
+if "chat_history" not in st.session_state: st.session_state.chat_history = []
 
-# --- 2. THEME & PROFESSIONAL STYLING ---
-st.set_page_config(page_title="Nexus Pro", layout="wide", initial_sidebar_state="collapsed")
-
-# Theme Selection
-if "theme_mode" not in st.session_state:
-    st.session_state.theme_mode = "Dark"
-
-# CSS Variables based on Theme
-if st.session_state.theme_mode == "Dark":
-    bg, card, text, accent = "#0E1117", "#1A1C23", "#E0E0E0", "#58a6ff"
-else:
-    bg, card, text, accent = "#F0F2F6", "#FFFFFF", "#1E1E1E", "#007BFF"
-
-st.markdown(f"""
-    <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
-    html, body, [class*="st-"] {{ font-family: 'Inter', sans-serif; background-color: {bg} !important; color: {text} !important; }}
+# THEME ENGINE
+def apply_theme(theme_mode):
+    if theme_mode == "Dark":
+        bg, text, card, sidebar = "#121212", "#E8EAED", "#1E1E1E", "#202124"
+    else:
+        bg, text, card, sidebar = "#FFFFFF", "#202124", "#F0F4F8", "#F8F9FA"
     
-    /* Professional Card Glassmorphism */
-    div[data-testid="stVerticalBlock"] > div:has(div.stMarkdown) {{
-        background: {card}; border-radius: 16px; padding: 24px;
-        border: 1px solid rgba(128, 128, 128, 0.2);
-        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.1);
-    }}
+    st.markdown(f"""
+        <style>
+        .stApp {{ background-color: {bg}; color: {text}; }}
+        [data-testid="stSidebar"] {{ background-color: {sidebar} !important; border-right: 1px solid #E0E0E0; }}
+        .stChatMessage {{ background-color: {card}; border-radius: 18px; padding: 20px; border: 1px solid #E1E4E8; }}
+        .stButton>button {{ border-radius: 24px; background-color: #1A73E8; color: white; border: none; }}
+        h1, h2, h3, p, label, .stMarkdown {{ color: {text} !important; }}
+        </style>
+        """, unsafe_allow_html=True)
 
-    .main-title {{
-        font-size: 36px; font-weight: 600;
-        background: linear-gradient(120deg, #58a6ff, #bc8cff);
-        -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-    }}
+apply_theme(st.session_state.theme)
+
+# API Security (Error Handling Wrapper)
+try:
+    client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+except Exception as e:
+    st.error(f"⚠️ API Key Error: {e}. Check your .streamlit/secrets.toml file.")
+    st.stop()
+
+# --- 2. INTELLIGENCE ENGINES ---
+def generate_image(prompt, is_video=False):
+    """Generates visual content using a stable, key-free API"""
+    clean_prompt = prompt.replace(" ", "%20")
+    seed = random.randint(1, 99999)
+    # Using Pollinations with a random seed to prevent caching (Fixes broken images)
+    if is_video:
+        return f"https://image.pollinations.ai/prompt/{clean_prompt}?width=720&height=720&model=turbo&nologo=true&seed={seed}"
+    else:
+        return f"https://image.pollinations.ai/prompt/{clean_prompt}?width=1024&height=1024&model=flux&nologo=true&seed={seed}"
+
+# --- 3. SIDEBAR CONTROL ---
+with st.sidebar:
+    st.image("https://www.gstatic.com/lamda/images/gemini_sparkle_v002_d473530393318e3d91f47.svg", width=50)
+    st.title("Nexus Control")
     
-    [data-testid="stSidebar"] {{ display: none; }}
-    #MainMenu, footer, header {{ visibility: hidden; }}
-    </style>
-    """, unsafe_allow_html=True)
+    if st.button("🌙 Toggle Theme"):
+        st.session_state.theme = "Dark" if st.session_state.theme == "Light" else "Light"
+        st.rerun()
 
-# --- 3. PROFESSIONAL HEADER ---
-c_head1, c_head2 = st.columns([8, 2])
-with c_head1:
-    st.markdown('<div class="main-title">Nexus Omni <span style="font-size:14px; color:gray;">v2.1 Pro</span></div>', unsafe_allow_html=True)
-with c_head2:
-    st.session_state.theme_mode = st.selectbox("Appearance", ["Dark", "Light"], label_visibility="collapsed")
-
-# --- 4. THE CONTROL CENTER ---
-col_writer, col_chat = st.columns([4, 6], gap="large")
-
-with col_writer:
-    st.subheader("✍️ Code Architect")
-    with st.container():
-        fname = st.text_input("Filename", value="new_logic.py", help="Name your file for GitHub")
-        code_body = st.text_area("Source Code", height=300, placeholder="# Enter your logic here...")
-        if st.button("🚀 Push to Production", use_container_width=True):
-            with st.spinner("Syncing with Vault..."):
-                try:
-                    # Check if exists to avoid 422 error
-                    try:
-                        f = repo.get_contents(fname)
-                        repo.update_file(fname, "Architect Update", code_body, f.sha)
-                    except:
-                        repo.create_file(fname, "Architect Deploy", code_body)
-                    st.toast("Deployment Successful!", icon='✅')
-                    st.rerun()
-                except Exception as e: st.error(e)
-
-    st.markdown("---")
-    st.subheader("📁 Repository Vault")
-    with st.container():
-        try:
-            files = repo.get_contents("")
-            for f in files:
-                if f.type == "file":
-                    with st.expander(f"📄 {f.name}"):
-                        st.code(f.decoded_content.decode()[:150] + "...", language='python')
-                        if st.button("Delete", key=f"del_{f.sha}"):
-                            repo.delete_file(f.path, "Remove", f.sha)
-                            st.rerun()
-        except: st.info("Scanning...")
-
-with col_chat:
-    st.subheader("💬 Nexus Intelligent Chat")
-    chat_box = st.container(height=580, border=True)
+    # The Menu - Verified to work
+    mode = st.radio("Sovereign Tools:", ["💬 Gemini Chat", "🎨 Vision Creator", "🎙️ Voice Command"])
     
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
+    st.divider()
+    st.write("📍 **Hub:** Faisalabad")
+    st.write("🟢 **System:** Online")
 
-    for m in st.session_state.messages:
-        with chat_box.chat_message(m["role"]):
-            st.markdown(m["content"])
+# --- 4. FUNCTIONAL MODULES ---
 
-    # PRO SUGGESTIONS
-    s1, s2, s3 = st.columns(3)
-    p_cmd = None
-    if s1.button("🔍 Audit Code"): p_cmd = "Review my latest GitHub file for security vulnerabilities."
-    if s2.button("📐 UI UX"): p_cmd = "Suggest 3 ways to make this app look even more professional."
-    if s3.button("🧠 Sync Memory"): p_cmd = "Read memory_general.json and summarize our progress."
+# BRAIN: PRO CHAT
+if mode == "💬 Gemini Chat":
+    st.title("Nexus Gemini Pro")
+    for msg in st.session_state.chat_history:
+        with st.chat_message(msg["role"]): st.markdown(msg["content"])
 
-    query = st.chat_input("Command the Nexus...") or p_cmd
-
-if query and client:
-    st.session_state.messages.append({"role": "user", "content": query})
-    with chat_box.chat_message("user"): st.markdown(query)
-    
-    with chat_box.chat_message("assistant"):
-        with st.spinner("Generating..."):
+    if prompt := st.chat_input("Command me..."):
+        st.session_state.chat_history.append({"role": "user", "content": prompt})
+        with st.chat_message("user"): st.markdown(prompt)
+        
+        with st.chat_message("assistant"):
             try:
-                comp = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=[{"role": "user", "content": query}])
-                ans = comp.choices[0].message.content
+                # Using Mixtral for higher stability than Llama 3.3
+                resp = client.chat.completions.create(
+                    model="mixtral-8x7b-32768",
+                    messages=[{"role": "system", "content": "You are Nexus. Keep answers short, bold, and professional."}] + st.session_state.chat_history
+                )
+                ans = resp.choices[0].message.content
                 st.markdown(ans)
-                st.session_state.messages.append({"role": "assistant", "content": ans})
-                st.rerun()
-            except Exception as e: st.error(e)
+                st.session_state.chat_history.append({"role": "assistant", "content": ans})
+            except Exception as e:
+                st.error(f"⚠️ Brain Error: {e}. Try again in 5 seconds.")
+
+# VISION: CREATOR (IMAGES & VIDEO)
+elif mode == "🎨 Vision Creator":
+    st.title("🎨 Nexus Imagination Engine")
+    st.info("Generates Images and Motion Art instantly.")
+    
+    creation_type = st.radio("Select Mode:", ["Static Image (High Quality)", "Motion Art (GIF)"], horizontal=True)
+    prompt = st.text_input("Describe your vision:", placeholder="e.g. A futuristic robot in Faisalabad holding a flag")
+    
+    if st.button("🚀 Generate Visual"):
+        if prompt:
+            with st.spinner("Compiling Visual Data..."):
+                time.sleep(1.5)
+                is_vid = "Motion" in creation_type
+                image_url = generate_image(prompt, is_vid)
+                
+                # Display with Error Handling
+                try:
+                    st.image(image_url, caption=f"Nexus Generated: {prompt}", use_container_width=True)
+                    st.success("Visual Manifested Successfully.")
+                except:
+                    st.error("Visual failed to load. Check your internet connection.")
+        else:
+            st.warning("Please enter a description first.")
+
+# VOICE COMMAND
+elif mode == "🎙️ Voice Command":
+    st.title("🎙️ Voice Bridge")
+    st.write("Click the microphone below. Speak clearly.")
+    
+    # Simple, robust recorder
+    audio = mic_recorder(start_prompt="🎤 Click to Speak", stop_prompt="⏹️ Stop Recording", key='recorder')
+    
+    if audio:
+        st.audio(audio['bytes'])
+        
+        if st.button("📝 Transcribe Audio"):
+            with st.spinner("Analyzing Voice Frequency..."):
+                # Save to temp file
+                with open("temp_voice.wav", "wb") as f:
+                    f.write(audio['bytes'])
+                
+                try:
+                    transcription = client.audio.transcriptions.create(
+                        file=("temp_voice.wav", open("temp_voice.wav", "rb")),
+                        model="whisper-large-v3"
+                    )
+                    st.success("Message Received:")
+                    st.markdown(f"### 🗣️ \"{transcription.text}\"")
+                except Exception as e:
+                    st.error(f"Voice Error: {e}")
