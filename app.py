@@ -16,24 +16,35 @@ def init_nexus():
         gem_model = genai.GenerativeModel('gemini-1.5-flash')
         # OpenAI Client
         oa_client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+        # OpenRouter Client (Uses OpenAI SDK format)
+        or_client = OpenAI(
+            base_url="https://openrouter.ai/api/v1",
+            api_key=st.secrets["OPENROUTER_API_KEY"],
+        )
         # GitHub
         gh = Github(st.secrets["GH_TOKEN"])
-        r = gh.get_repo(st.secrets["GH_REPO"])
+        repo = gh.get_repo(st.secrets["GH_REPO"])
         
-        return {"groq": g_client, "gemini": gem_model, "openai": oa_client}, r
+        clients = {
+            "groq": g_client, 
+            "gemini": gem_model, 
+            "openai": oa_client,
+            "openrouter": or_client
+        }
+        return clients, repo
     except Exception as e:
         st.error(f"Sync Offline: {e}")
         return None, None
 
 clients, repo = init_nexus()
 
-# Initialize the Model Cycle State
+# Initialize the Model Cycle State (Added OpenRouter as a failover)
 if "model_cycle" not in st.session_state:
-    st.session_state.model_cycle = ["groq", "gemini", "openai"]
+    st.session_state.model_cycle = ["groq", "gemini", "openai", "openrouter"]
 if "current_model_idx" not in st.session_state:
     st.session_state.current_model_idx = 0
 
-# --- 2. THEME & UI (Same as Standard) ---
+# --- 2. THEME & UI ---
 st.set_page_config(page_title="Nexus Pro", layout="wide", initial_sidebar_state="collapsed")
 if "theme_mode" not in st.session_state: st.session_state.theme_mode = "Dark"
 bg, card, text, accent = ("#0E1117", "#1A1C23", "#E0E0E0", "#58a6ff") if st.session_state.theme_mode == "Dark" else ("#F0F2F6", "#FFFFFF", "#1E1E1E", "#007BFF")
@@ -47,9 +58,10 @@ st.markdown(f"""<style>
 
 # --- 3. LOGIC ENGINE ---
 def get_ai_response(prompt):
-    # Try models in a circular fashion starting from current index
+    max_attempts = len(st.session_state.model_cycle)
     attempts = 0
-    while attempts < 3:
+    
+    while attempts < max_attempts:
         current_provider = st.session_state.model_cycle[st.session_state.current_model_idx]
         try:
             if current_provider == "groq":
@@ -69,20 +81,28 @@ def get_ai_response(prompt):
                     messages=[{"role": "user", "content": prompt}]
                 )
                 return resp.choices[0].message.content, "OpenAI (GPT-4o)"
+
+            elif current_provider == "openrouter":
+                # Fallback to DeepSeek via OpenRouter (High availability)
+                resp = clients["openrouter"].chat.completions.create(
+                    model="deepseek/deepseek-chat",
+                    messages=[{"role": "user", "content": prompt}]
+                )
+                return resp.choices[0].message.content, "OpenRouter (DeepSeek)"
                 
         except Exception as e:
-            # If error is rate limit or API issue, move to next model
-            st.warning(f"{current_provider} limit reached. Cycling to next AI...")
-            st.session_state.current_model_idx = (st.session_state.current_model_idx + 1) % 3
+            # Shift to next index and log warning
+            st.warning(f"{current_provider} node unavailable. Cycling...")
+            st.session_state.current_model_idx = (st.session_state.current_model_idx + 1) % max_attempts
             attempts += 1
     
-    return "All AI nodes are currently at capacity. Please wait for limits to reset.", "System"
+    return "All AI nodes (Groq, Gemini, OpenAI, OpenRouter) are at capacity.", "System Error"
 
 # --- 4. HEADER & LAYOUT ---
 c_head1, c_head2 = st.columns([8, 2])
 with c_head1:
     current_name = st.session_state.model_cycle[st.session_state.current_model_idx].upper()
-    st.markdown(f'<div class="main-title">Nexus Omni <span style="font-size:14px; color:gray;">Active: {current_name}</span></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="main-title">Nexus Omni <span style="font-size:14px; color:gray;">Active Node: {current_name}</span></div>', unsafe_allow_html=True)
 with c_head2:
     st.session_state.theme_mode = st.selectbox("Appearance", ["Dark", "Light"], label_visibility="collapsed")
 
@@ -93,30 +113,37 @@ with col_writer:
     fname = st.text_input("Filename", value="nexus_logic.py")
     code_body = st.text_area("Source Code", height=300)
     if st.button("🚀 Push to Production", use_container_width=True):
-        try:
+        if repo:
             try:
-                f = repo.get_contents(fname)
-                repo.update_file(fname, "Update", code_body, f.sha)
-            except:
-                repo.create_file(fname, "Deploy", code_body)
-            st.toast("Success!")
-        except Exception as e: st.error(e)
+                try:
+                    f = repo.get_contents(fname)
+                    repo.update_file(fname, "Update", code_body, f.sha)
+                except:
+                    repo.create_file(fname, "Deploy", code_body)
+                st.toast("Success!")
+            except Exception as e: st.error(e)
+        else:
+            st.error("GitHub Repo not synced.")
 
 with col_chat:
     st.subheader("💬 Nexus Intelligent Chat")
     if "messages" not in st.session_state: st.session_state.messages = []
     
     chat_box = st.container(height=500, border=True)
-    for m in st.session_state.messages:
-        with chat_box.chat_message(m["role"]): st.markdown(m["content"])
+    with chat_box:
+        for m in st.session_state.messages:
+            with st.chat_message(m["role"]): 
+                st.markdown(m["content"])
 
     query = st.chat_input("Command the Nexus...")
     if query and clients:
         st.session_state.messages.append({"role": "user", "content": query})
-        with chat_box.chat_message("user"): st.markdown(query)
+        with chat_box:
+            with st.chat_message("user"): 
+                st.markdown(query)
         
-        with chat_box.chat_message("assistant"):
-            with st.spinner("Cycling AI Nodes..."):
-                answer, provider_label = get_ai_response(query)
-                st.markdown(f"**[{provider_label}]**\n\n{answer}")
-                st.session_state.messages.append({"role": "assistant", "content": answer})
+            with st.chat_message("assistant"):
+                with st.spinner("Routing through available nodes..."):
+                    answer, provider_label = get_ai_response(query)
+                    st.markdown(f"**[{provider_label}]**\n\n{answer}")
+                    st.session_state.messages.append({"role": "assistant", "content": answer})
