@@ -1,118 +1,130 @@
-import os
-import sys
-import asyncio
-import logging
-import threading
-import platform
-import psutil
-import aiohttp
-import aiosqlite
-import httpx
-from datetime import datetime
-from typing import List, Dict, Optional
-from fastapi import FastAPI, HTTPException, Request, BackgroundTasks
-from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from bleach import clean
-from cryptography.fernet import Fernet
-from scapy.all import sniff, IP
-from tenacity import retry, stop_after_attempt, wait_fixed
-from dotenv import load_dotenv
+import streamlit as st
+import json
+from groq import Groq
+from github import Github
 
-# 1. Initialization & Security
-load_dotenv()
-app = FastAPI(title="SOVEREIGN_GOD_TIER_V1", version="2026.02.15")
-templates = Jinja2Templates(directory="templates")
+# --- 1. CORE SYNC ---
+@st.cache_resource
+def init_nexus():
+    try:
+        g_client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+        gh = Github(st.secrets["GH_TOKEN"])
+        r = gh.get_repo(st.secrets["GH_REPO"])
+        return g_client, r
+    except Exception as e:
+        st.error(f"Sync Offline: {e}")
+        return None, None
 
-# Master Encryption Key for the Omniscience Vault
-SECRET_KEY = os.getenv("SOVEREIGN_KEY", Fernet.generate_key())
-cipher_suite = Fernet(SECRET_KEY)
+client, repo = init_nexus()
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("sovereign_core")
+# --- 2. THEME & PROFESSIONAL STYLING ---
+st.set_page_config(page_title="Nexus Pro", layout="wide", initial_sidebar_state="collapsed")
 
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+# Theme Selection
+if "theme_mode" not in st.session_state:
+    st.session_state.theme_mode = "Dark"
 
-# --- CORE MODULES ---
+# CSS Variables based on Theme
+if st.session_state.theme_mode == "Dark":
+    bg, card, text, accent = "#0E1117", "#1A1C23", "#E0E0E0", "#58a6ff"
+else:
+    bg, card, text, accent = "#F0F2F6", "#FFFFFF", "#1E1E1E", "#007BFF"
 
-class SystemGovernor:
-    """Manages physical laptop resources."""
-    @staticmethod
-    def get_health():
-        return {
-            "cpu_usage": f"{psutil.cpu_percent()}%",
-            "ram_available": f"{psutil.virtual_memory().available / (1024**3):.2f} GB",
-            "disk_free": f"{psutil.disk_usage('/').free / (1024**3):.2f} GB",
-            "os": platform.system()
-        }
+st.markdown(f"""
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
+    html, body, [class*="st-"] {{ font-family: 'Inter', sans-serif; background-color: {bg} !important; color: {text} !important; }}
     
-    @staticmethod
-    async def optimize():
-        for proc in psutil.process_iter(['pid', 'name']):
-            if proc.info['name'] in ['UpdateAgent', 'TempSync']: # Example targets
-                proc.terminate()
-        logger.info("System Resources Optimized.")
+    /* Professional Card Glassmorphism */
+    div[data-testid="stVerticalBlock"] > div:has(div.stMarkdown) {{
+        background: {card}; border-radius: 16px; padding: 24px;
+        border: 1px solid rgba(128, 128, 128, 0.2);
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.1);
+    }}
 
-class IntelligenceVault:
-    """Encrypted persistent memory."""
-    async def init_db(self):
-        async with aiosqlite.connect("omniscience.db") as db:
-            await db.execute("CREATE TABLE IF NOT EXISTS vault (id INTEGER PRIMARY KEY, topic TEXT, data TEXT)")
-            await db.commit()
-
-    async def secure_store(self, topic: str, content: str):
-        encrypted = cipher_suite.encrypt(content.encode()).decode()
-        async with aiosqlite.connect("omniscience.db") as db:
-            await db.execute("INSERT INTO vault (topic, data) VALUES (?, ?)", (topic, encrypted))
-            await db.commit()
-
-class GuardianShield:
-    """Intrusion detection and Kill-Switch."""
-    def __init__(self):
-        self.authorized_ips = ["127.0.0.1"]
+    .main-title {{
+        font-size: 36px; font-weight: 600;
+        background: linear-gradient(120deg, #58a6ff, #bc8cff);
+        -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }}
     
-    def sentinel(self, packet):
-        if packet.haslayer(IP) and packet[IP].src not in self.authorized_ips:
-            if packet[IP].dport in [8000, 22]:
-                logger.critical("UNAUTHORIZED ACCESS. EXECUTING KILL-SWITCH.")
-                os._exit(1)
+    [data-testid="stSidebar"] {{ display: none; }}
+    #MainMenu, footer, header {{ visibility: hidden; }}
+    </style>
+    """, unsafe_allow_html=True)
 
-    def start(self):
-        t = threading.Thread(target=lambda: sniff(prn=self.sentinel, store=0))
-        t.daemon = True
-        t.start()
+# --- 3. PROFESSIONAL HEADER ---
+c_head1, c_head2 = st.columns([8, 2])
+with c_head1:
+    st.markdown('<div class="main-title">Nexus Omni <span style="font-size:14px; color:gray;">v2.1 Pro</span></div>', unsafe_allow_html=True)
+with c_head2:
+    st.session_state.theme_mode = st.selectbox("Appearance", ["Dark", "Light"], label_visibility="collapsed")
 
-# --- INITIALIZATION ---
-governor = SystemGovernor()
-vault = IntelligenceVault()
-shield = GuardianShield()
+# --- 4. THE CONTROL CENTER ---
+col_writer, col_chat = st.columns([4, 6], gap="large")
 
-class IntentRequest(BaseModel):
-    intent: str
+with col_writer:
+    st.subheader("✍️ Code Architect")
+    with st.container():
+        fname = st.text_input("Filename", value="new_logic.py", help="Name your file for GitHub")
+        code_body = st.text_area("Source Code", height=300, placeholder="# Enter your logic here...")
+        if st.button("🚀 Push to Production", use_container_width=True):
+            with st.spinner("Syncing with Vault..."):
+                try:
+                    # Check if exists to avoid 422 error
+                    try:
+                        f = repo.get_contents(fname)
+                        repo.update_file(fname, "Architect Update", code_body, f.sha)
+                    except:
+                        repo.create_file(fname, "Architect Deploy", code_body)
+                    st.toast("Deployment Successful!", icon='✅')
+                    st.rerun()
+                except Exception as e: st.error(e)
 
-@app.on_event("startup")
-async def startup():
-    await vault.init_db()
-    shield.start()
-    logger.info("SOVEREIGN ENTITY ASCENDED.")
+    st.markdown("---")
+    st.subheader("📁 Repository Vault")
+    with st.container():
+        try:
+            files = repo.get_contents("")
+            for f in files:
+                if f.type == "file":
+                    with st.expander(f"📄 {f.name}"):
+                        st.code(f.decoded_content.decode()[:150] + "...", language='python')
+                        if st.button("Delete", key=f"del_{f.sha}"):
+                            repo.delete_file(f.path, "Remove", f.sha)
+                            st.rerun()
+        except: st.info("Scanning...")
 
-@app.get("/", response_class=HTMLResponse)
-async def dashboard(request: Request):
-    return templates.TemplateResponse("dashboard.html", {"request": request})
+with col_chat:
+    st.subheader("💬 Nexus Intelligent Chat")
+    chat_box = st.container(height=580, border=True)
+    
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
 
-@app.get("/system/status")
-async def status():
-    return {"health": governor.get_health(), "status": "Online"}
+    for m in st.session_state.messages:
+        with chat_box.chat_message(m["role"]):
+            st.markdown(m["content"])
 
-@app.post("/execute")
-async def execute(request: IntentRequest, background_tasks: BackgroundTasks):
-    sanitized = clean(request.intent)
-    if "secure" in sanitized.lower():
-        background_tasks.add_task(governor.optimize)
-    return {"status": "Executing", "intent": sanitized}
+    # PRO SUGGESTIONS
+    s1, s2, s3 = st.columns(3)
+    p_cmd = None
+    if s1.button("🔍 Audit Code"): p_cmd = "Review my latest GitHub file for security vulnerabilities."
+    if s2.button("📐 UI UX"): p_cmd = "Suggest 3 ways to make this app look even more professional."
+    if s3.button("🧠 Sync Memory"): p_cmd = "Read memory_general.json and summarize our progress."
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    query = st.chat_input("Command the Nexus...") or p_cmd
+
+if query and client:
+    st.session_state.messages.append({"role": "user", "content": query})
+    with chat_box.chat_message("user"): st.markdown(query)
+    
+    with chat_box.chat_message("assistant"):
+        with st.spinner("Generating..."):
+            try:
+                comp = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=[{"role": "user", "content": query}])
+                ans = comp.choices[0].message.content
+                st.markdown(ans)
+                st.session_state.messages.append({"role": "assistant", "content": ans})
+                st.rerun()
+            except Exception as e: st.error(e)
