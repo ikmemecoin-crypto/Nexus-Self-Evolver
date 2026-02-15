@@ -1,75 +1,152 @@
 import streamlit as st
-from google import genai
-from google.genai import types
+import google.generativeai as genai
+from github import Github, GithubException
+import os
 
-# --- 1. App Configuration ---
-st.set_page_config(page_title="Nexus Ultra", page_icon="🚀", layout="wide")
+# --- 1. CONFIGURATION & SETUP ---
+st.set_page_config(
+    page_title="Nexus Omni: Gemini Core",
+    page_icon="🧬",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
-# Retrieve API Key from Streamlit Secrets
-# Setup: In Streamlit Cloud, go to Settings -> Secrets and add GEMINI_API_KEY = "your_key"
-GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY")
+# Load Secrets securely
+try:
+    GEMINI_KEY = st.secrets["GEMINI_API_KEY"]
+    # Optional: GitHub Key for the "Push to Production" feature
+    GITHUB_KEY = st.secrets.get("GITHUB_TOKEN", None) 
+    REPO_NAME = st.secrets.get("REPO_NAME", "your-username/nexus-repo")
+except FileNotFoundError:
+    st.error("🚨 CRITICAL: `.streamlit/secrets.toml` not found. Please add your API keys!")
+    st.stop()
+except KeyError as e:
+    st.error(f"🚨 MISSING SECRET: {e}. Check your Streamlit dashboard.")
+    st.stop()
 
-# Primary Model: Gemini 2.5 Flash (Balanced speed and high limits)
-MODEL_ID = "gemini-2.5-flash"
+# Configure Gemini
+genai.configure(api_key=GEMINI_KEY)
+# We use 'gemini-1.5-flash' for speed and high free-tier limits
+model = genai.GenerativeModel('gemini-1.5-flash')
 
-# --- 2. Initialize Nexus Engine ---
-def get_nexus_response(prompt, chat_history):
-    if not GEMINI_API_KEY:
-        return "Error: API Key not found. Please check your Streamlit Secrets."
-    
-    client = genai.Client(api_key=GEMINI_API_KEY)
-    
+# --- 2. CORE FUNCTIONS ---
+
+def get_gemini_response(prompt, history=[]):
+    """
+    Sends a message to Gemini while maintaining context history.
+    """
     try:
-        # Create a chat session with the provided history
-        chat = client.chats.create(
-            model=MODEL_ID,
-            config=types.GenerateContentConfig(
-                temperature=0.7,
-                top_p=0.95,
-                top_k=40,
-                max_output_tokens=2048,
-            ),
-            history=chat_history
-        )
-        
+        chat = model.start_chat(history=history)
         response = chat.send_message(prompt)
         return response.text
-    
     except Exception as e:
-        return f"Nexus System Error: {str(e)}"
+        return f"⚠️ Nexus Error: {str(e)}"
 
-# --- 3. Streamlit UI Layout ---
-st.title("🌐 Nexus Ultra Alpha")
-st.caption("Powered by Gemini 2.5 Flash | Status: Optimal")
-
-# Initialize Chat History
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-
-# Display previous messages
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
-
-# User Input Logic
-if user_query := st.chat_input("Ask Nexus anything..."):
-    # Add user message to state
-    st.session_state.messages.append({"role": "user", "content": user_query})
+def push_to_github(filename, code, commit_msg):
+    """
+    Pushes generated code to your GitHub repo automatically.
+    """
+    if not GITHUB_KEY:
+        return "❌ Error: GITHUB_TOKEN not found in secrets."
     
-    with st.chat_message("user"):
-        st.markdown(user_query)
+    try:
+        g = Github(GITHUB_KEY)
+        repo = g.get_repo(REPO_NAME)
+        
+        try:
+            # Update existing file
+            contents = repo.get_contents(filename)
+            repo.update_file(contents.path, commit_msg, code, contents.sha)
+            return f"✅ Updated `{filename}` successfully!"
+        except:
+            # Create new file if it doesn't exist
+            repo.create_file(filename, commit_msg, code)
+            return f"✅ Created `{filename}` successfully!"
+            
+    except GithubException as e:
+        return f"❌ GitHub Error: {e.data.get('message', str(e))}"
 
-    # Convert Streamlit history to Google GenAI format
-    # Note: 'user' messages stay 'user', but 'assistant' must be 'model' for Gemini
-    formatted_history = []
-    for m in st.session_state.messages[:-1]:
-        role = "user" if m["role"] == "user" else "model"
-        formatted_history.append(types.Content(role=role, parts=[types.Part.from_text(text=m["content"])]))
+# --- 3. UI ARCHITECTURE ---
 
-    # Generate Assistant Response
-    with st.chat_message("assistant"):
-        with st.spinner("Processing through Nexus nodes..."):
-            response_text = get_nexus_response(user_query, formatted_history)
-            st.markdown(response_text)
+# Sidebar: System Status
+with st.sidebar:
+    st.header("🔮 Nexus System")
+    st.success("Core: Gemini 1.5 Flash")
+    st.info("Mode: Omni-Agent")
     
-    st.session_state.messages.append({"role": "assistant", "content": response_text})
+    st.divider()
+    st.markdown("### 📂 Repository Vault")
+    # Simulation of repo files (In real version, use repo.get_contents)
+    st.code("app.py\nrequirements.txt\ntask_master.py", language="text")
+
+# Main Interface
+st.title("🧬 Nexus Omni")
+st.markdown("*Self-Evolving AI Architecture powered by Google Gemini*")
+
+# Create Tabs to organize the features neatly
+tab1, tab2 = st.tabs(["💬 Nexus Chat", "🛠️ Code Architect"])
+
+# --- TAB 1: INTELLIGENT CHAT ---
+with tab1:
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+
+    # Display history
+    for msg in st.session_state.messages:
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
+
+    # Chat Input
+    if prompt := st.chat_input("Command the Nexus..."):
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        with st.chat_message("user"):
+            st.markdown(prompt)
+
+        with st.chat_message("assistant"):
+            with st.spinner("Thinking..."):
+                # Convert Streamlit history to Gemini history format
+                gemini_history = [
+                    {"role": "user" if m["role"] == "user" else "model", "parts": [m["content"]]}
+                    for m in st.session_state.messages[:-1]
+                ]
+                
+                response = get_gemini_response(prompt, gemini_history)
+                st.markdown(response)
+        
+        st.session_state.messages.append({"role": "assistant", "content": response})
+
+# --- TAB 2: CODE ARCHITECT (The Feature from your Screenshot) ---
+with tab2:
+    st.subheader("🚀 Autonomous Code Generator")
+    
+    col1, col2 = st.columns([1, 2])
+    
+    with col1:
+        target_file = st.text_input("Target Filename", value="new_tool.py")
+        task_desc = st.text_area("Describe functionality", height=150, 
+                               placeholder="e.g., Create a python script that scans the local folder for duplicate images.")
+        
+        generate_btn = st.button("✨ Generate Code")
+
+    with col2:
+        st.markdown("### Source Code Preview")
+        if generate_btn and task_desc:
+            with st.spinner("Architecting solution..."):
+                # Specialized prompt for coding
+                code_prompt = f"Write a production-ready Python script for: {task_desc}. Provide ONLY the code, no markdown formatting."
+                generated_code = get_gemini_response(code_prompt)
+                
+                # Clean up if Gemini adds markdown blocks
+                clean_code = generated_code.replace("```python", "").replace("```", "").strip()
+                
+                st.session_state['generated_code'] = clean_code
+                st.code(clean_code, language="python")
+        
+        elif "generated_code" in st.session_state:
+            st.code(st.session_state['generated_code'], language="python")
+        
+        # Push to Production Button
+        if "generated_code" in st.session_state:
+            if st.button("🚀 Push to Repository"):
+                status = push_to_github(target_file, st.session_state['generated_code'], "Nexus Auto-Update")
+                st.toast(status)
