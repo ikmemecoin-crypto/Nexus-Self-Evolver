@@ -2,7 +2,7 @@ import nltk
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize, sent_tokenize
 
-def summarize_text(text, summary_length=5):
+def summarize_text(text, num_sentences):
     stop_words = set(stopwords.words('english'))
     words = word_tokenize(text.lower())
     freq = {}
@@ -21,8 +21,5 @@ def summarize_text(text, summary_length=5):
                     sentence_scores[sentence] = freq[word]
                 else:
                     sentence_scores[sentence] += freq[word]
-    summary = ''
-    sorted_sentences = sorted(sentence_scores.items(), key=lambda x: x[1], reverse=True)
-    for sentence, _ in sorted_sentences[:summary_length):
-        summary += sentence + ' '
-    return summary
+    summary_sentences = sorted(sentence_scores, key=sentence_scores.get, reverse=True)[:num_sentences]
+    return ' '.join(summary_sentences)
