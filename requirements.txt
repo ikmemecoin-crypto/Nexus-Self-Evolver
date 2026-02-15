@@ -1,21 +1,5 @@
-google-genai
-PyGithub
-Pillow
-requests
-streamlit
+streamlit>=1.31.0
+google-generativeai>=0.4.0
+PyGithub>=2.1.1
 pandas
-streamlit>=1.31.0
-groq>=0.4.2
-PyGithub>=2.1.1
-streamlit>=1.31.0
-groq>=0.4.2
-PyGithub>=2.1.1
-openai>=1.12.0
-# Add these to your requirements.txt if you switch providers
-groq>=0.9.0
-openai>=1.50.0  # OpenRouter and DeepSeek use the OpenAI-compatible client
-streamlit
-groq
-PyGithub
-google-generativeai
-openai>=1.0.0
+Pillow
