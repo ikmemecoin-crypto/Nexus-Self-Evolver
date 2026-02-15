@@ -20,11 +20,9 @@ client, repo = init_nexus()
 # --- 2. THEME & PROFESSIONAL STYLING ---
 st.set_page_config(page_title="Nexus Pro", layout="wide", initial_sidebar_state="collapsed")
 
-# Theme Selection
 if "theme_mode" not in st.session_state:
     st.session_state.theme_mode = "Dark"
 
-# CSS Variables based on Theme
 if st.session_state.theme_mode == "Dark":
     bg, card, text, accent = "#0E1117", "#1A1C23", "#E0E0E0", "#58a6ff"
 else:
@@ -34,20 +32,16 @@ st.markdown(f"""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
     html, body, [class*="st-"] {{ font-family: 'Inter', sans-serif; background-color: {bg} !important; color: {text} !important; }}
-    
-    /* Professional Card Glassmorphism */
     div[data-testid="stVerticalBlock"] > div:has(div.stMarkdown) {{
         background: {card}; border-radius: 16px; padding: 24px;
         border: 1px solid rgba(128, 128, 128, 0.2);
         box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.1);
     }}
-
     .main-title {{
         font-size: 36px; font-weight: 600;
         background: linear-gradient(120deg, #58a6ff, #bc8cff);
         -webkit-background-clip: text; -webkit-text-fill-color: transparent;
     }}
-    
     [data-testid="stSidebar"] {{ display: none; }}
     #MainMenu, footer, header {{ visibility: hidden; }}
     </style>
@@ -66,12 +60,11 @@ col_writer, col_chat = st.columns([4, 6], gap="large")
 with col_writer:
     st.subheader("✍️ Code Architect")
     with st.container():
-        fname = st.text_input("Filename", value="new_logic.py", help="Name your file for GitHub")
+        fname = st.text_input("Filename", value="new_logic.py")
         code_body = st.text_area("Source Code", height=300, placeholder="# Enter your logic here...")
         if st.button("🚀 Push to Production", use_container_width=True):
-            with st.spinner("Syncing with Vault..."):
+            with st.spinner("Syncing..."):
                 try:
-                    # Check if exists to avoid 422 error
                     try:
                         f = repo.get_contents(fname)
                         repo.update_file(fname, "Architect Update", code_body, f.sha)
@@ -90,18 +83,18 @@ with col_writer:
                 if f.type == "file":
                     with st.expander(f"📄 {f.name}"):
                         st.code(f.decoded_content.decode()[:150] + "...", language='python')
-                        if st.button("Delete", key=f"del_{f.sha}"):
+                        if st.button("Delete", key=f"del_{f.name}"):
                             repo.delete_file(f.path, "Remove", f.sha)
                             st.rerun()
         except: st.info("Scanning...")
 
 with col_chat:
     st.subheader("💬 Nexus Intelligent Chat")
-    chat_box = st.container(height=580, border=True)
     
     if "messages" not in st.session_state:
         st.session_state.messages = []
 
+    chat_box = st.container(height=500, border=True)
     for m in st.session_state.messages:
         with chat_box.chat_message(m["role"]):
             st.markdown(m["content"])
@@ -113,18 +106,30 @@ with col_chat:
     if s2.button("📐 UI UX"): p_cmd = "Suggest 3 ways to make this app look even more professional."
     if s3.button("🧠 Sync Memory"): p_cmd = "Read memory_general.json and summarize our progress."
 
-    query = st.chat_input("Command the Nexus...") or p_cmd
+    query = st.chat_input("Command the Nexus...")
+    if p_cmd: query = p_cmd
 
-if query and client:
-    st.session_state.messages.append({"role": "user", "content": query})
-    with chat_box.chat_message("user"): st.markdown(query)
-    
-    with chat_box.chat_message("assistant"):
-        with st.spinner("Generating..."):
-            try:
-                comp = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=[{"role": "user", "content": query}])
-                ans = comp.choices[0].message.content
-                st.markdown(ans)
-                st.session_state.messages.append({"role": "assistant", "content": ans})
-                st.rerun()
-            except Exception as e: st.error(e)
+    if query and client:
+        st.session_state.messages.append({"role": "user", "content": query})
+        with chat_box.chat_message("user"): 
+            st.markdown(query)
+        
+        with chat_box.chat_message("assistant"):
+            with st.spinner("Generating..."):
+                try:
+                    # Added fallback model logic to prevent the 429 error from stopping you
+                    try:
+                        model_to_use = "llama-3.3-70b-versatile"
+                        comp = client.chat.completions.create(model=model_to_use, messages=st.session_state.messages)
+                    except Exception as e:
+                        if "rate_limit_exceeded" in str(e).lower():
+                            st.warning("Primary model limit reached. Switching to Lightweight backup...")
+                            model_to_use = "llama-3.1-8b-instant"
+                            comp = client.chat.completions.create(model=model_to_use, messages=st.session_state.messages)
+                        else: raise e
+                    
+                    ans = comp.choices[0].message.content
+                    st.markdown(ans)
+                    st.session_state.messages.append({"role": "assistant", "content": ans})
+                except Exception as e: 
+                    st.error(f"Nexus Error: {e}")
